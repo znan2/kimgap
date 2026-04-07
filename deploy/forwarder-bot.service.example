@@ -1,0 +1,16 @@
+[Unit]
+Description=ipchulmak Telegram forwarder bot
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/ipchulmak
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/opt/ipchulmak/.env
+ExecStart=/opt/ipchulmak/.venv/bin/python /opt/ipchulmak/forwarder_bot.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
