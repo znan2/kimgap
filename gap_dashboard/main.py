@@ -424,12 +424,24 @@ async def _run_gap_alert_watcher() -> None:
                             cheaper_on = row.get("cheaper_on", "unknown")
                             upbit = row.get("upbit")
                             bithumb = row.get("bithumb")
+                            kp_upbit = row.get("kp_upbit")
+                            kp_bithumb = row.get("kp_bithumb")
+                            kp_upbit_text = (
+                                f"{float(kp_upbit):.4f}%" if isinstance(kp_upbit, (int, float)) else "N/A"
+                            )
+                            kp_bithumb_text = (
+                                f"{float(kp_bithumb):.4f}%"
+                                if isinstance(kp_bithumb, (int, float))
+                                else "N/A"
+                            )
                             msg = (
-                                f"[갭 알림] {sym}\n"
-                                f"- gap: {gap:.4f}% (기준 {threshold:.4f}%)\n"
-                                f"- cheaper_on: {cheaper_on}\n"
-                                f"- upbit: {upbit}\n"
-                                f"- bithumb: {bithumb}"
+                                f"[갭 알림] 티커: {sym}\n"
+                                f"- 갭: {gap:.4f}% (기준 {threshold:.4f}%)\n"
+                                f"- 김프(업): {kp_upbit_text}\n"
+                                f"- 김프(빗): {kp_bithumb_text}\n"
+                                f"- 업비트: {upbit}\n"
+                                f"- 빗썸: {bithumb}\n"
+                                "https://kimgap.com/"
                             )
                             await _broadcast_alert(msg)
                             _ALERT_LAST_SENT_AT[sym] = now
