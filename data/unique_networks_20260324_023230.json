@@ -1,0 +1,188 @@
+{
+  "BTC": {
+    "net_type": "BTC",
+    "network_name": "Bitcoin",
+    "currencies": [
+      "BTC"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  },
+  "ETH": {
+    "net_type": "ETH",
+    "network_name": "Ethereum",
+    "currencies": [
+      "ETH"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  },
+  "ARB": {
+    "net_type": "ARB",
+    "network_name": "Arbitrum One",
+    "currencies": [
+      "ETH"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  },
+  "OP": {
+    "net_type": "OP",
+    "network_name": "Optimism",
+    "currencies": [
+      "ETH"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "XRP": {
+    "net_type": "XRP",
+    "network_name": "XRP Ledger",
+    "currencies": [
+      "XRP"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  },
+  "SOL": {
+    "net_type": "SOL",
+    "network_name": "Solana",
+    "currencies": [
+      "SOL",
+      "USDT"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  },
+  "ERC-20": {
+    "net_type": "ERC-20",
+    "network_name": "Ethereum",
+    "currencies": [
+      "USDT",
+      "SHIB"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  },
+  "TRC-20": {
+    "net_type": "TRC-20",
+    "network_name": "Tron",
+    "currencies": [
+      "USDT"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  },
+  "ATOM": {
+    "net_type": "ATOM",
+    "network_name": "Cosmos Hub",
+    "currencies": [
+      "ATOM"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "DOGE": {
+    "net_type": "DOGE",
+    "network_name": "Dogecoin",
+    "currencies": [
+      "DOGE"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "POLYGON": {
+    "net_type": "POLYGON",
+    "network_name": "Polygon",
+    "currencies": [
+      "MATIC"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "APT": {
+    "net_type": "APT",
+    "network_name": "Aptos",
+    "currencies": [
+      "APT"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "SUI": {
+    "net_type": "SUI",
+    "network_name": "Sui",
+    "currencies": [
+      "SUI"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "KCT": {
+    "net_type": "KCT",
+    "network_name": "Klaytn",
+    "currencies": [
+      "KLAY"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "TON": {
+    "net_type": "TON",
+    "network_name": "TON",
+    "currencies": [
+      "TON"
+    ],
+    "exchanges": [
+      "upbit"
+    ],
+    "is_active": true
+  },
+  "STARKNET": {
+    "net_type": "STARKNET",
+    "network_name": "Starknet",
+    "currencies": [
+      "STRK"
+    ],
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ],
+    "is_active": true
+  }
+}

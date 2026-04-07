@@ -1,0 +1,1758 @@
+{
+  "BTC": {
+    "chain": "Bitcoin",
+    "rpc": "https://blockstream.info/api",
+    "type": "bitcoin",
+    "block_time_sec": 600,
+    "net_type": "BTC",
+    "network_name": "Bitcoin",
+    "currencies": [
+      "BTC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ETH": {
+    "chain": "Ethereum",
+    "rpc": "https://eth.llamarpc.com",
+    "type": "evm",
+    "block_time_sec": 12,
+    "net_type": "ETH",
+    "network_name": "Ethereum",
+    "currencies": [
+      "POWR",
+      "ETH",
+      "SNT",
+      "STORJ",
+      "MANA",
+      "ZRX",
+      "BAT",
+      "BNT",
+      "NMR",
+      "DNT"
+    ],
+    "currency_count": 145,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ETC": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ETC",
+    "network_name": "Ethereum Classic",
+    "currencies": [
+      "ETC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "QTUM": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "QTUM",
+    "network_name": "Qtum",
+    "currencies": [
+      "QTUM",
+      "QI"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "XRP": {
+    "chain": "XRP Ledger",
+    "rpc": "https://xrplcluster.com",
+    "type": "xrpl",
+    "block_time_sec": 4,
+    "net_type": "XRP",
+    "network_name": "XRP Ledger",
+    "currencies": [
+      "XRP",
+      "SOLO",
+      "XCORE"
+    ],
+    "currency_count": 3,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "WAVES": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "WAVES",
+    "network_name": "Waves",
+    "currencies": [
+      "WAVES"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "WAXP": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "WAXP",
+    "network_name": "WAX",
+    "currencies": [
+      "WAXP"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "STEEM": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "STEEM",
+    "network_name": "Steem",
+    "currencies": [
+      "STEEM"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "A": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "A",
+    "network_name": "Vaulta",
+    "currencies": [
+      "A",
+      "EOSDAC",
+      "ADD",
+      "HORUS",
+      "MEETONE",
+      "CHL",
+      "BLACK"
+    ],
+    "currency_count": 7,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ADA": {
+    "chain": "Cardano",
+    "rpc": "",
+    "type": "cardano",
+    "block_time_sec": 20,
+    "net_type": "ADA",
+    "network_name": "Cardano",
+    "currencies": [
+      "ADA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "TRX": {
+    "chain": "Tron",
+    "rpc": "https://api.trongrid.io",
+    "type": "tron",
+    "block_time_sec": 3,
+    "net_type": "TRX",
+    "network_name": "Tron",
+    "currencies": [
+      "TRX",
+      "BTT",
+      "WIN",
+      "JST",
+      "SUN",
+      "APENFT",
+      "USDT"
+    ],
+    "currency_count": 7,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "NEO": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "NEO",
+    "network_name": "NEO N3",
+    "currencies": [
+      "NEO",
+      "GAS"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ARK": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ARK",
+    "network_name": "Ark",
+    "currencies": [
+      "ARK"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ARDR": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ARDR",
+    "network_name": "Ardor",
+    "currencies": [
+      "ARDR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "LISK": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "LISK",
+    "network_name": "Lisk",
+    "currencies": [
+      "LSK"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ICX": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ICX",
+    "network_name": "ICON",
+    "currencies": [
+      "ICX"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "XLM": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "XLM",
+    "network_name": "Stellar Network",
+    "currencies": [
+      "XLM",
+      "AQUA"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SC": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "SC",
+    "network_name": "Siacoin",
+    "currencies": [
+      "SC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ONT": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ONT",
+    "network_name": "Ontology",
+    "currencies": [
+      "ONT",
+      "ONG",
+      "MBL"
+    ],
+    "currency_count": 3,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ELF": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ELF",
+    "network_name": "AELF",
+    "currencies": [
+      "ELF"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "DOGE": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "DOGE",
+    "network_name": "Dogecoin",
+    "currencies": [
+      "DOGE"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ZIL": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ZIL",
+    "network_name": "Zilliqa",
+    "currencies": [
+      "ZIL"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "IOTA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "IOTA",
+    "network_name": "IOTA",
+    "currencies": [
+      "IOTA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "BCH": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "BCH",
+    "network_name": "Bitcoin Cash",
+    "currencies": [
+      "BCH"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "IOST": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "IOST",
+    "network_name": "IOST",
+    "currencies": [
+      "IOST",
+      "DON"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "RVN": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "RVN",
+    "network_name": "Ravencoin",
+    "currencies": [
+      "RVN"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "DGB": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "DGB",
+    "network_name": "DigiByte",
+    "currencies": [
+      "DGB"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ARBITRUM": {
+    "chain": "Arbitrum One",
+    "rpc": "https://arb1.arbitrum.io/rpc",
+    "type": "evm",
+    "block_time_sec": 0.25,
+    "net_type": "ARBITRUM",
+    "network_name": "Arbitrum One",
+    "currencies": [
+      "BOUNTY",
+      "MLK",
+      "LZM",
+      "ARB",
+      "ANIME"
+    ],
+    "currency_count": 5,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ENJ": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ENJ",
+    "network_name": "Enjin",
+    "currencies": [
+      "ENJ"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "VET": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "VET",
+    "network_name": "VeChain",
+    "currencies": [
+      "VET",
+      "VTHO"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "BSV": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "BSV",
+    "network_name": "Bitcoin SV",
+    "currencies": [
+      "BSV"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "THETA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "THETA",
+    "network_name": "Theta Token",
+    "currencies": [
+      "THETA",
+      "TFUEL"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "XTZ": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "XTZ",
+    "network_name": "Tezos",
+    "currencies": [
+      "XTZ"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "QKC": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "QKC",
+    "network_name": "Quarkchain",
+    "currencies": [
+      "QKC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "IOTX": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "IOTX",
+    "network_name": "IoTeX",
+    "currencies": [
+      "IOTX"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "NKN": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "NKN",
+    "network_name": "NKN",
+    "currencies": [
+      "NKN"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "META": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "META",
+    "network_name": "Metadium",
+    "currencies": [
+      "META"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "CRO": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "CRO",
+    "network_name": "Cronos POS",
+    "currencies": [
+      "CRO"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "KAIA": {
+    "chain": "Kaia (Klaytn)",
+    "rpc": "https://public-en-cypress.klaytn.net",
+    "type": "evm",
+    "block_time_sec": 1,
+    "net_type": "KAIA",
+    "network_name": "Kaia",
+    "currencies": [
+      "BORA",
+      "OBSR",
+      "USDT"
+    ],
+    "currency_count": 3,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "MARO": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "MARO",
+    "network_name": "Maro",
+    "currencies": [
+      "ACN"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ATOM": {
+    "chain": "Cosmos Hub",
+    "rpc": "https://cosmos-rest.publicnode.com",
+    "type": "cosmos",
+    "block_time_sec": 6,
+    "net_type": "ATOM",
+    "network_name": "Cosmos Hub",
+    "currencies": [
+      "ATOM"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "TT": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "TT",
+    "network_name": "ThunderCore",
+    "currencies": [
+      "TT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "BASENET": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "BASENET",
+    "network_name": "Base",
+    "currencies": [
+      "AWE",
+      "BRETT",
+      "CARV",
+      "VIRTUAL",
+      "KAITO",
+      "SIGN",
+      "FLOCK",
+      "AERO",
+      "AVNT",
+      "TOSHI"
+    ],
+    "currency_count": 16,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "HBAR": {
+    "chain": "Hedera",
+    "rpc": "https://mainnet.mirrornode.hedera.com",
+    "type": "hedera",
+    "block_time_sec": 3,
+    "net_type": "HBAR",
+    "network_name": "Hedera",
+    "currencies": [
+      "HBAR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "MED": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "MED",
+    "network_name": "MediBloc",
+    "currencies": [
+      "MED"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "HIVE": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "HIVE",
+    "network_name": "Hive",
+    "currencies": [
+      "HIVE",
+      "HBD"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "LUK": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "LUK",
+    "network_name": "Luniverse",
+    "currencies": [
+      "AHT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "KAVA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "KAVA",
+    "network_name": "Kava",
+    "currencies": [
+      "KAVA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "RVC": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "RVC",
+    "network_name": "Ravencoin Classic",
+    "currencies": [
+      "RVC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "DOT": {
+    "chain": "Polkadot",
+    "rpc": "wss://rpc.polkadot.io",
+    "type": "substrate",
+    "block_time_sec": 6,
+    "net_type": "DOT",
+    "network_name": "AssetHub Polkadot",
+    "currencies": [
+      "DOT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SUI": {
+    "chain": "Sui",
+    "rpc": "https://fullnode.mainnet.sui.io",
+    "type": "sui",
+    "block_time_sec": 0.5,
+    "net_type": "SUI",
+    "network_name": "Sui",
+    "currencies": [
+      "LWA",
+      "SUI",
+      "WAL",
+      "DEEP",
+      "HAEDAL",
+      "MMT"
+    ],
+    "currency_count": 6,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ALGO": {
+    "chain": "Algorand",
+    "rpc": "https://mainnet-api.algonode.cloud",
+    "type": "algorand",
+    "block_time_sec": 3.3,
+    "net_type": "ALGO",
+    "network_name": "Algorand",
+    "currencies": [
+      "ALGO"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "STRAX": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "STRAX",
+    "network_name": "Stratis",
+    "currencies": [
+      "STRAX"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "FCT2": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "FCT2",
+    "network_name": "FirmaChain",
+    "currencies": [
+      "FCT2"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "XYM": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "XYM",
+    "network_name": "Symbol",
+    "currencies": [
+      "XYM"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "FIL": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "FIL",
+    "network_name": "Filecoin",
+    "currencies": [
+      "FIL"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "INJ": {
+    "chain": "Injective",
+    "rpc": "https://injective-rest.publicnode.com",
+    "type": "cosmos",
+    "block_time_sec": 1,
+    "net_type": "INJ",
+    "network_name": "Injective",
+    "currencies": [
+      "INJ"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "VAL": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "VAL",
+    "network_name": "Validity",
+    "currencies": [
+      "VAL"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "BFC": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "BFC",
+    "network_name": "Bifrost",
+    "currencies": [
+      "BFC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "HP": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "HP",
+    "network_name": "Hippo Protocol",
+    "currencies": [
+      "HP"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "STX": {
+    "chain": "Stacks",
+    "rpc": "https://stacks-node-api.mainnet.stacks.co",
+    "type": "stacks",
+    "block_time_sec": 600,
+    "net_type": "STX",
+    "network_name": "Stacks",
+    "currencies": [
+      "STX"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "CELO": {
+    "chain": "Celo",
+    "rpc": "https://forno.celo.org",
+    "type": "evm",
+    "block_time_sec": 5,
+    "net_type": "CELO",
+    "network_name": "Celo",
+    "currencies": [
+      "CELO"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "NEAR": {
+    "chain": "NEAR",
+    "rpc": "https://rpc.mainnet.near.org",
+    "type": "near",
+    "block_time_sec": 1,
+    "net_type": "NEAR",
+    "network_name": "NEAR Protocol",
+    "currencies": [
+      "NEAR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "XEC": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "XEC",
+    "network_name": "eCash",
+    "currencies": [
+      "XEC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SGB": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "SGB",
+    "network_name": "Songbird",
+    "currencies": [
+      "SGB"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SOL": {
+    "chain": "Solana",
+    "rpc": "https://api.mainnet-beta.solana.com",
+    "type": "solana",
+    "block_time_sec": 0.4,
+    "net_type": "SOL",
+    "network_name": "Solana",
+    "currencies": [
+      "SOL",
+      "RENDER",
+      "RAY",
+      "ACS",
+      "ORCA",
+      "PYTH",
+      "JUP",
+      "MEW",
+      "W",
+      "BONK"
+    ],
+    "currency_count": 30,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "GLMR": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "GLMR",
+    "network_name": "Moonbeam",
+    "currencies": [
+      "GLMR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "AVAX": {
+    "chain": "Avalanche C",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "type": "evm",
+    "block_time_sec": 2,
+    "net_type": "AVAX",
+    "network_name": "Avalanche C-Chain",
+    "currencies": [
+      "AVAX",
+      "NXPC"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "EGLD": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "EGLD",
+    "network_name": "MultiversX",
+    "currencies": [
+      "EGLD"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "REI": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "REI",
+    "network_name": "REI Network",
+    "currencies": [
+      "REI"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "POL": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "POL",
+    "network_name": "Polygon",
+    "currencies": [
+      "GMT",
+      "POL"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "LUNA2": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "LUNA2",
+    "network_name": "Terra",
+    "currencies": [
+      "LUNA2"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ETHW": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ETHW",
+    "network_name": "Ethereum(PoW)",
+    "currencies": [
+      "ETHW"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ETHF": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ETHF",
+    "network_name": "EthereumFair",
+    "currencies": [
+      "ETHF"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "APT": {
+    "chain": "Aptos",
+    "rpc": "https://fullnode.mainnet.aptoslabs.com/v1",
+    "type": "aptos",
+    "block_time_sec": 1,
+    "net_type": "APT",
+    "network_name": "Aptos",
+    "currencies": [
+      "APT",
+      "USDT"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ICZ": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ICZ",
+    "network_name": "Snow",
+    "currencies": [
+      "ICZ"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "POLYX": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "POLYX",
+    "network_name": "Polymesh",
+    "currencies": [
+      "POLYX"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "EVR": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "EVR",
+    "network_name": "Evrmore",
+    "currencies": [
+      "EVR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "FLR": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "FLR",
+    "network_name": "Flare",
+    "currencies": [
+      "FLR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ASTR": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ASTR",
+    "network_name": "Astar Network",
+    "currencies": [
+      "ASTR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ICP": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ICP",
+    "network_name": "Internet Computer Protocol",
+    "currencies": [
+      "ICP"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "MINA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "MINA",
+    "network_name": "Mina",
+    "currencies": [
+      "MINA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SEI": {
+    "chain": "Sei",
+    "rpc": "https://sei-rest.publicnode.com",
+    "type": "cosmos",
+    "block_time_sec": 0.4,
+    "net_type": "SEI",
+    "network_name": "Sei",
+    "currencies": [
+      "SEI"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "CHZ": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "CHZ",
+    "network_name": "Chiliz Chain",
+    "currencies": [
+      "CHZ",
+      "PSG",
+      "JUV",
+      "ACM",
+      "AFC",
+      "ATM",
+      "BAR",
+      "CITY",
+      "INTER",
+      "NAP"
+    ],
+    "currency_count": 12,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "STRK": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "STRK",
+    "network_name": "Starknet",
+    "currencies": [
+      "STRK"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "POKT": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "POKT",
+    "network_name": "Pocket Network",
+    "currencies": [
+      "POKT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "AKT": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "AKT",
+    "network_name": "Akash Network",
+    "currencies": [
+      "AKT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ZETA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "ZETA",
+    "network_name": "ZetaChain",
+    "currencies": [
+      "ZETA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "TAIKONET": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "TAIKONET",
+    "network_name": "Taiko",
+    "currencies": [
+      "TAIKO"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "BLASTNET": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "BLASTNET",
+    "network_name": "Blast",
+    "currencies": [
+      "BLAST"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "METAL": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "METAL",
+    "network_name": "Metal L2",
+    "currencies": [
+      "MTL"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "KLY": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "KLY",
+    "network_name": "Klayr",
+    "currencies": [
+      "KLY"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "CKB": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "CKB",
+    "network_name": "Nervos Network",
+    "currencies": [
+      "CKB"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SWELLNET": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "SWELLNET",
+    "network_name": "Swellchain",
+    "currencies": [
+      "SWELL"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "VANA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "VANA",
+    "network_name": "Vana",
+    "currencies": [
+      "VANA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "BERA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "BERA",
+    "network_name": "Berachain",
+    "currencies": [
+      "BERA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SCROLLNET": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "SCROLLNET",
+    "network_name": "Scroll",
+    "currencies": [
+      "SCR"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "OPTIMISM": {
+    "chain": "Optimism",
+    "rpc": "https://mainnet.optimism.io",
+    "type": "evm",
+    "block_time_sec": 2,
+    "net_type": "OPTIMISM",
+    "network_name": "Optimism",
+    "currencies": [
+      "WCT",
+      "OP",
+      "WLD"
+    ],
+    "currency_count": 3,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "TIA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "TIA",
+    "network_name": "Celestia",
+    "currencies": [
+      "TIA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "MANTRA": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "MANTRA",
+    "network_name": "MANTRA",
+    "currencies": [
+      "MANTRA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SOPH": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "SOPH",
+    "network_name": "Sophon Chain",
+    "currencies": [
+      "SOPH"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "BABY": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "BABY",
+    "network_name": "Babylon Genesis",
+    "currencies": [
+      "BABY"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "IP": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "IP",
+    "network_name": "Story",
+    "currencies": [
+      "IP",
+      "ARIAIP"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "WLDCHAIN": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "WLDCHAIN",
+    "network_name": "World Chain",
+    "currencies": [
+      "WLD"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "LINEANET": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "LINEANET",
+    "network_name": "Linea",
+    "currencies": [
+      "LINEA"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "INIT": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "INIT",
+    "network_name": "Initia",
+    "currencies": [
+      "INIT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "0G": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "0G",
+    "network_name": "0G Chain",
+    "currencies": [
+      "0G"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "XPL": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "XPL",
+    "network_name": "Plasma",
+    "currencies": [
+      "XPL"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SOMI": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "SOMI",
+    "network_name": "Somnia",
+    "currencies": [
+      "SOMI"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "MON": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "MON",
+    "network_name": "Monad",
+    "currencies": [
+      "MON"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "ZKSYNC": {
+    "chain": "zkSync Era",
+    "rpc": "https://mainnet.era.zksync.io",
+    "type": "evm",
+    "block_time_sec": 1,
+    "net_type": "ZKSYNC",
+    "network_name": "ZKsync Era",
+    "currencies": [
+      "ZK"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "TAO": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "TAO",
+    "network_name": "Bittensor Network",
+    "currencies": [
+      "TAO"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  }
+}

@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>업비트 · 빗썸 가격 갭</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #07080c;
+      --surface: #10131c;
+      --border: #1e2433;
+      --text: #e8eaef;
+      --muted: #8b92a8;
+      --accent: #3ee8c8;
+      --accent-dim: rgba(62, 232, 200, 0.12);
+      --warn: #ffb14a;
+      --upbit: #0c8ce9;
+      --bithumb: #f37321;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(62, 232, 200, 0.15), transparent),
+        var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.75rem;
+    }
+    h1 {
+      font-family: "Syne", sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.6rem, 4vw, 2.1rem);
+      letter-spacing: -0.03em;
+      margin: 0;
+      line-height: 1.15;
+    }
+    h1 span { color: var(--accent); }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.85rem 1rem;
+    }
+    .toolbar-search-block {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex: 1 1 14rem;
+      min-width: 12rem;
+      max-width: 26rem;
+    }
+    .ticker-search-label {
+      flex-shrink: 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+    .conn-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid rgba(62, 232, 200, 0.4);
+      background: rgba(62, 232, 200, 0.1);
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .conn-badge.err {
+      border-color: rgba(255, 100, 100, 0.45);
+      background: rgba(255, 80, 80, 0.12);
+      color: #ff9a9a;
+    }
+    .conn-badge.wait {
+      border-color: rgba(255, 177, 74, 0.4);
+      background: rgba(255, 177, 74, 0.1);
+      color: var(--warn);
+    }
+    label.toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    input[type="number"] {
+      width: 4rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: inherit;
+    }
+    input.ticker-search {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+      padding: 0.55rem 0.85rem;
+      border-radius: 10px;
+      border: 1px solid rgba(62, 232, 200, 0.5);
+      background: rgba(5, 8, 14, 0.75);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 500;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+    input.ticker-search::placeholder {
+      color: var(--muted);
+      font-weight: 400;
+      opacity: 0.9;
+    }
+    input.ticker-search:hover {
+      border-color: rgba(62, 232, 200, 0.65);
+      background: rgba(8, 12, 20, 0.85);
+    }
+    input.ticker-search:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(62, 232, 200, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.5rem;
+      padding: 0.9rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .meta-row strong { color: var(--text); font-weight: 600; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    th, td { padding: 0.65rem 1rem; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.25);
+      border-bottom: 1px solid var(--border);
+    }
+    tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+    tr:hover td { background: rgba(62, 232, 200, 0.04); }
+    .sym { font-weight: 700; letter-spacing: 0.02em; }
+    .gap { font-family: "Syne", sans-serif; font-weight: 700; color: var(--accent); font-size: 0.95rem; }
+    .tag {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+    .tag.upbit { background: rgba(12, 140, 233, 0.2); color: #7cc4ff; }
+    .tag.bithumb { background: rgba(243, 115, 33, 0.2); color: #ffb48a; }
+    .dir-flow {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.12rem;
+      font-weight: 700;
+      font-size: 0.88rem;
+      letter-spacing: 0.02em;
+    }
+    .dir-flow .dir-end.upbit { color: var(--upbit); }
+    .dir-flow .dir-end.bithumb { color: var(--bithumb); }
+    .dir-flow .dir-arrow {
+      color: var(--muted);
+      font-weight: 500;
+      margin: 0 0.02rem;
+    }
+    .dir-flow.dir-tie {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.82rem;
+    }
+    th.dir-sub {
+      font-size: 0.62rem !important;
+      font-weight: 500 !important;
+      text-transform: none !important;
+      letter-spacing: 0.02em !important;
+      color: var(--muted) !important;
+    }
+    th.col-mid,
+    td.col-mid {
+      text-align: center !important;
+      vertical-align: middle;
+    }
+    th.dw-col {
+      text-align: center !important;
+    }
+    td.dw-cell {
+      font-size: 0.8rem;
+      white-space: nowrap;
+      text-align: center !important;
+      vertical-align: middle;
+    }
+    .dw-dot-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 1.25rem;
+      box-sizing: border-box;
+    }
+    .dw-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: block;
+      flex-shrink: 0;
+    }
+    .dw-dot.dw-ok {
+      background: #35c759;
+      box-shadow: 0 0 0 2px rgba(53, 199, 89, 0.28);
+    }
+    .dw-dot.dw-bad {
+      background: #e54d4d;
+      box-shadow: 0 0 0 2px rgba(229, 77, 77, 0.22);
+    }
+    .dw-dot.dw-unk {
+      width: 7px;
+      height: 7px;
+      background: var(--muted);
+      opacity: 0.4;
+      box-shadow: none;
+    }
+    .kp-pos { color: #7dd87a; }
+    .kp-neg { color: #ff8a8a; }
+    .kp-na  { color: var(--muted); }
+    .risk {
+      display: inline-block;
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      margin-left: 0.25rem;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .risk.safe  { background: rgba(120, 200, 140, 0.15); color: #9ddbad; }
+    .risk.warn  { background: rgba(255, 177, 74, 0.18); color: var(--warn); }
+    .risk.danger{ background: rgba(255, 90, 90, 0.18); color: #ff9a9a; }
+    .risk.opp   { background: rgba(100, 180, 255, 0.18); color: #8ac4ff; }
+    select.sort-sel {
+      padding: 0.3rem 0.45rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.8rem;
+    }
+    .rate-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .rate-bar strong { color: var(--accent); font-weight: 700; font-size: 0.95rem; }
+    .btn-sm {
+      padding: 0.3rem 0.6rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-sm:hover { background: var(--accent-dim); }
+    .btn-sm:disabled { opacity: 0.5; cursor: default; }
+    .card + .card { margin-top: 1.25rem; }
+    .card h2 {
+      font-family: "Syne", sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0;
+      padding: 1rem 1.1rem 0;
+      letter-spacing: -0.02em;
+    }
+    .card .hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      padding: 0.35rem 1.1rem 0.75rem;
+      line-height: 1.45;
+    }
+    .loading, .empty {
+      padding: 2.5rem 1rem;
+      text-align: center;
+      color: var(--muted);
+    }
+    footer {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    tr.coin-row {
+      cursor: pointer;
+      user-select: none;
+    }
+    tr.coin-row:hover td {
+      background: rgba(62, 232, 200, 0.07) !important;
+    }
+    /* 양쪽 거래소 모두 입금·출금 가능(집계) */
+    table.main-gaps-table tbody tr.coin-row-dw-full td {
+      background: rgba(53, 199, 89, 0.085) !important;
+      box-shadow: inset 3px 0 0 rgba(45, 175, 90, 0.55);
+    }
+    table.main-gaps-table tbody tr.coin-row-dw-full:hover td {
+      background: rgba(53, 199, 89, 0.14) !important;
+      box-shadow: inset 3px 0 0 rgba(45, 175, 90, 0.75);
+    }
+    /* 입·출금 중 하나라도 불가(빨간 원) */
+    table.main-gaps-table tbody tr.coin-row-dw-issue td {
+      background: rgba(229, 77, 77, 0.075) !important;
+      box-shadow: inset 3px 0 0 rgba(210, 70, 70, 0.5);
+    }
+    table.main-gaps-table tbody tr.coin-row-dw-issue:hover td {
+      background: rgba(229, 77, 77, 0.13) !important;
+      box-shadow: inset 3px 0 0 rgba(210, 70, 70, 0.72);
+    }
+    td.sym-cell {
+      vertical-align: middle;
+      text-align: left;
+    }
+    td.sym-cell.col-mid {
+      text-align: center !important;
+    }
+    .sym-text {
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+    }
+    .coin-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .coin-modal[hidden] { display: none !important; }
+    .coin-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(6px);
+    }
+    .coin-modal-panel {
+      position: relative;
+      max-width: 920px;
+      width: 100%;
+      max-height: min(88vh, 820px);
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55);
+    }
+    .coin-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .coin-modal-head h3 {
+      margin: 0;
+      font-family: "Syne", sans-serif;
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+    }
+    .coin-modal-close {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.6rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      border-radius: 8px;
+    }
+    .coin-modal-close:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .coin-modal-body {
+      overflow-y: auto;
+      padding: 1rem 1.25rem 1.5rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    .coin-modal-section { margin-bottom: 1.35rem; }
+    .coin-modal-section:last-child { margin-bottom: 0; }
+    .coin-modal-section h4 {
+      margin: 0 0 0.65rem;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .coin-modal-limits {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 640px) {
+      .coin-modal-limits { grid-template-columns: 1fr; }
+    }
+    .coin-modal-limit-box {
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+    }
+    .coin-modal-limit-box.upbit { border-left: 3px solid var(--upbit); }
+    .coin-modal-limit-box.bithumb { border-left: 3px solid var(--bithumb); }
+    .coin-modal-limit-box .ex-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .coin-modal-limit-box.upbit .ex-label { color: var(--upbit); }
+    .coin-modal-limit-box.bithumb .ex-label { color: var(--bithumb); }
+    .coin-modal-limit-box dl { margin: 0; }
+    .coin-modal-limit-box dt {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin: 0.4rem 0 0.08rem;
+    }
+    .coin-modal-limit-box dd {
+      margin: 0;
+      font-size: 0.92rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .coin-modal-net-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 760px) {
+      .coin-modal-net-grid { grid-template-columns: 1fr; }
+    }
+    .coin-modal-net-box {
+      background: rgba(0, 0, 0, 0.22);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      overflow-x: auto;
+    }
+    .coin-modal-net-box h5 {
+      margin: 0 0 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .coin-modal-net-box.upbit h5 { color: var(--upbit); }
+    .coin-modal-net-box.bithumb h5 { color: var(--bithumb); }
+    .modal-net-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .modal-net-table th,
+    .modal-net-table td {
+      padding: 0.45rem 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-net-table th {
+      color: var(--muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .modal-net-table .net-name { font-weight: 600; white-space: nowrap; }
+    .modal-net-table th.dw-col,
+    .modal-net-table td.dw-net {
+      text-align: center !important;
+    }
+    .modal-net-table td.dw-net .dw-dot-wrap {
+      display: flex;
+      width: 100%;
+      justify-content: center;
+      align-items: center;
+      min-height: 1.25rem;
+    }
+    .coin-modal-empty {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .coin-modal-hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0 0 0.75rem;
+      line-height: 1.45;
+    }
+    .coin-modal-cex-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.7rem;
+    }
+    .coin-modal-cex-card {
+      background: rgba(0, 0, 0, 0.22);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+    }
+    .coin-modal-cex-head {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #f3f6ff;
+    }
+    .coin-modal-cex-logo {
+      width: 1.05rem;
+      height: 1.05rem;
+      border-radius: 4px;
+      object-fit: cover;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .cex-dot {
+      width: 0.52rem;
+      height: 0.52rem;
+      border-radius: 999px;
+      background: #f7b500;
+      box-shadow: 0 0 0 2px rgba(247, 181, 0, 0.18);
+      flex: 0 0 auto;
+    }
+    .coin-modal-cex-row {
+      display: grid;
+      grid-template-columns: 4.2rem 1fr auto;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.28rem 0;
+      border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    }
+    .coin-modal-cex-row:first-of-type { border-top: none; }
+    .coin-modal-cex-kind {
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+    .coin-modal-cex-symbol {
+      color: #eaf2ff;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.93rem;
+    }
+    .coin-modal-cex-symbol.none {
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .cex-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.7rem;
+      padding: 0.12rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .cex-badge.ok {
+      color: #1ed286;
+      background: rgba(30, 210, 134, 0.14);
+      border-color: rgba(30, 210, 134, 0.34);
+    }
+    .cex-badge.no {
+      color: #ff7b7b;
+      background: rgba(255, 123, 123, 0.12);
+      border-color: rgba(255, 123, 123, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>업비트 <span>×</span> 빗썸 가격 갭</h1>
+      </div>
+      <div class="toolbar">
+        <div class="toolbar-search-block" title="티커 일부만 입력해도 됩니다. 비우면 전체 목록.">
+          <label class="ticker-search-label" for="tickerSearch">종목 검색</label>
+          <input
+            type="search"
+            id="tickerSearch"
+            class="ticker-search"
+            placeholder="심볼 입력 (예: BTC, ETH)"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <span id="connStatus" class="conn-badge wait" aria-live="polite">연결 중</span>
+        <label class="toggle">
+          <input type="checkbox" id="filterPause" />
+          입출금 이슈만
+        </label>
+        <label class="toggle">
+          정렬
+          <select id="sortBy" class="sort-sel">
+            <option value="gap">갭 %</option>
+            <option value="kp_upbit">김프(업비트)</option>
+            <option value="rp_upbit">역프(업비트)</option>
+            <option value="kp_bithumb">김프(빗썸)</option>
+            <option value="rp_bithumb">역프(빗썸)</option>
+          </select>
+        </label>
+        <button id="btnWl" class="btn-sm" title="출금 일일한도 캐시 수동 새로고침">출금한도 새로고침</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="rate-bar" id="rate-bar">기준 환율 로드 중…</div>
+      <div class="meta-row" id="meta"></div>
+      <div id="table-wrap">
+        <div class="loading">데이터 요청 중…</div>
+      </div>
+    </div>
+
+    <div class="card" id="restricted-card">
+      <h2>입·출금 제한 종목</h2>
+      <p class="hint">한 거래소라도 <strong>입금 가능 네트워크가 하나도 없거나</strong>, <strong>출금 가능 네트워크가 하나도 없으면</strong> 여기에 포함됩니다. 여러 네트워크가 있으면 &quot;하나라도 열려 있으면 가능&quot;으로 집계합니다.</p>
+      <div class="meta-row" id="restricted-meta"></div>
+      <div id="restricted-wrap">
+        <div class="loading">연동 대기 중…</div>
+      </div>
+    </div>
+
+    <div class="card" id="blocked-card">
+      <h2>입출금 · 전 네트워크 중단</h2>
+      <p class="hint">각 거래소에서 해당 코인의 <strong>모든</strong> 지갑/네트워크 행이 입금+출금 불가(<code>wallet_state</code> 기준)인 경우입니다. 아래는 위 갭 목록과의 교집합만 표시합니다.</p>
+      <div class="meta-row" id="blocked-meta"></div>
+      <div id="blocked-wrap">
+        <div class="loading">연동 대기 중…</div>
+      </div>
+    </div>
+
+    <footer>
+      브라우저는 <code>WebSocket /ws/gaps</code>로 갱신 페이로드를 수신합니다(폴백 <code>GET /api/gaps</code>). 시세: 업비트 <code>/v1/market/all</code> · <code>/v1/ticker</code>, 빗썸 <code>/public/ticker/ALL_KRW</code>, 바이낸스 <code>/api/v3/ticker/price</code>. 입출금(선택): <code>/v1/status/wallet</code> + API 키. 갭% = (고가 − 저가) ÷ 저가 × 100. 김프(%) = (국내KRW / (바이낸스USDT × USDT/KRW) − 1) × 100. 위험도: 안전(0~1%), 주의(1~3%), 위험(3%↑), 역프(&lt;0%). 수수료·슬리피지·호가는 미반영입니다.
+    </footer>
+  </div>
+
+  <div id="coin-modal" class="coin-modal" hidden>
+    <div class="coin-modal-backdrop" id="coin-modal-backdrop"></div>
+    <div class="coin-modal-panel" role="dialog" aria-modal="true" aria-labelledby="coin-modal-title">
+      <div class="coin-modal-head">
+        <h3 id="coin-modal-title"></h3>
+        <button type="button" class="coin-modal-close" id="coin-modal-close" aria-label="닫기">&times;</button>
+      </div>
+      <div class="coin-modal-body" id="coin-modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    const connStatusEl = document.getElementById("connStatus");
+    const metaEl = document.getElementById("meta");
+    const tableWrap = document.getElementById("table-wrap");
+    const blockedWrap = document.getElementById("blocked-wrap");
+    const blockedMeta = document.getElementById("blocked-meta");
+    const restrictedWrap = document.getElementById("restricted-wrap");
+    const restrictedMeta = document.getElementById("restricted-meta");
+    const rateBar = document.getElementById("rate-bar");
+    const tickerSearchEl = document.getElementById("tickerSearch");
+    const filterPauseEl = document.getElementById("filterPause");
+    const sortByEl = document.getElementById("sortBy");
+    const btnWl = document.getElementById("btnWl");
+    const coinModal = document.getElementById("coin-modal");
+    const coinModalTitle = document.getElementById("coin-modal-title");
+    const coinModalBody = document.getElementById("coin-modal-body");
+    const coinModalBackdrop = document.getElementById("coin-modal-backdrop");
+    const coinModalClose = document.getElementById("coin-modal-close");
+
+    let lastPayload = null;
+
+    function setConnBadge(mode, text) {
+      connStatusEl.textContent = text;
+      connStatusEl.className =
+        "conn-badge" + (mode === "err" ? " err" : mode === "wait" ? " wait" : "");
+    }
+
+    function formatKRW(n) {
+      return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: n < 100 ? 4 : 2 }).format(n);
+    }
+
+    function formatTime(ms) {
+      return new Date(ms).toLocaleString("ko-KR", { hour12: false });
+    }
+
+    /** 입·출금: 초록/빨강 원 (label: 툴팁·스크린리더용, 예: "입금") */
+    function dwDot(ok, label) {
+      const L = label || "";
+      if (ok === true) {
+        const t = L ? `${L} 가능` : "가능";
+        return `<span class="dw-dot-wrap" title="${t}"><span class="dw-dot dw-ok" role="img" aria-label="${t}"></span></span>`;
+      }
+      if (ok === false) {
+        const t = L ? `${L} 불가` : "불가";
+        return `<span class="dw-dot-wrap" title="${t}"><span class="dw-dot dw-bad" role="img" aria-label="${t}"></span></span>`;
+      }
+      const t = L ? `${L} 알 수 없음` : "알 수 없음";
+      return `<span class="dw-dot-wrap" title="${t}"><span class="dw-dot dw-unk" role="img" aria-label="${t}"></span></span>`;
+    }
+
+    function escHtml(str) {
+      if (str == null) return "";
+      const d = document.createElement("div");
+      d.textContent = String(str);
+      return d.innerHTML;
+    }
+
+    function formatNumFull(v) {
+      if (v == null || v === "") return "—";
+      const n = Number(v);
+      if (!Number.isFinite(n)) return "—";
+      return n.toLocaleString("ko-KR", { maximumFractionDigits: 18 });
+    }
+
+    function findGapRow(sym) {
+      if (!lastPayload || !sym) return null;
+      const g = lastPayload.gaps || [];
+      let r = g.find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.wallet_restricted || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      return (lastPayload.wallet_fully_blocked || []).find((x) => x.symbol === sym) || null;
+    }
+
+    function networkTableHtml(nets) {
+      if (!nets || !nets.length) {
+        return '<p class="coin-modal-empty">해당 거래소에 표시할 네트워크 행이 없습니다.</p>';
+      }
+      const sorted = [...nets].sort((a, b) =>
+        String(a.net_type || "").localeCompare(String(b.net_type || ""), "ko")
+      );
+      const trs = sorted
+        .map((n) => {
+          const meta = [n.wallet_state, n.block_state].filter(Boolean).join(" · ");
+          return `
+            <tr>
+              <td class="net-name">${escHtml(n.net_type || "—")}</td>
+              <td class="dw-net">${dwDot(n.deposit_available, "입금")}</td>
+              <td class="dw-net">${dwDot(n.withdraw_available, "출금")}</td>
+              <td>${meta ? escHtml(meta) : "—"}</td>
+            </tr>`;
+        })
+        .join("");
+      return `
+        <table class="modal-net-table">
+          <thead>
+            <tr>
+              <th>네트워크</th>
+              <th class="dw-col">입금</th>
+              <th class="dw-col">출금</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody>${trs}</tbody>
+        </table>`;
+    }
+
+    function cexCardHtml(title, spotSymbol, futuresSymbol, logoSrc) {
+      const spotExists = !!spotSymbol;
+      const futExists = !!futuresSymbol;
+      const spotText = spotExists ? escHtml(spotSymbol) : "상장 없음";
+      const futText = futExists ? escHtml(futuresSymbol) : "상장 없음";
+      const headIcon = logoSrc
+        ? `<img src="${escHtml(logoSrc)}" alt="${escHtml(title)} 로고" class="coin-modal-cex-logo" loading="lazy" />`
+        : `<span class="cex-dot" aria-hidden="true"></span>`;
+      return `
+        <div class="coin-modal-cex-card">
+          <div class="coin-modal-cex-head">${headIcon}${escHtml(title)}</div>
+          <div class="coin-modal-cex-row">
+            <div class="coin-modal-cex-kind">SPOT</div>
+            <div class="coin-modal-cex-symbol${spotExists ? "" : " none"}">${spotText}</div>
+            <span class="cex-badge ${spotExists ? "ok" : "no"}">${spotExists ? "지원" : "없음"}</span>
+          </div>
+          <div class="coin-modal-cex-row">
+            <div class="coin-modal-cex-kind">FUTURE</div>
+            <div class="coin-modal-cex-symbol${futExists ? "" : " none"}">${futText}</div>
+            <span class="cex-badge ${futExists ? "ok" : "no"}">${futExists ? "지원" : "없음"}</span>
+          </div>
+        </div>`;
+    }
+
+    function binanceListingsHtml(row) {
+      const spot = row.binance_spot_symbol;
+      const fut = row.binance_futures_symbol;
+      return cexCardHtml("바이낸스", spot, fut);
+    }
+
+    function bybitListingsHtml(row) {
+      const spot = row.bybit_spot_symbol;
+      const fut = row.bybit_futures_symbol;
+      return cexCardHtml("바이비트", spot, fut, "/static/bybit-logo.png");
+    }
+
+    function bitgetListingsHtml(row) {
+      const spot = row.bitget_spot_symbol;
+      const fut = row.bitget_futures_symbol;
+      return cexCardHtml("비트겟", spot, fut, "/static/bitget-logo.png");
+    }
+
+    function okxListingsHtml(row) {
+      const spot = row.okx_spot_symbol;
+      const fut = row.okx_futures_symbol;
+      return cexCardHtml("OKX", spot, fut, "/static/okx-logo.png");
+    }
+
+    function gateListingsHtml(row) {
+      const spot = row.gate_spot_symbol;
+      const fut = row.gate_futures_symbol;
+      return cexCardHtml("Gate.io", spot, fut, "/static/gate-logo.png");
+    }
+
+    function openCoinModal(sym) {
+      const row = findGapRow(sym);
+      if (!row) return;
+      coinModalTitle.textContent = row.symbol;
+      const wl = row.withdraw_limits || {};
+      const limitHint =
+        '<p class="coin-modal-hint">일일 한도는 본인 API 키로 조회한 값을 서버에 캐시한 것입니다. 출금조회 권한이 없거나 아직 로딩 중이면 — 로 보일 수 있습니다.</p>';
+
+      const upLimits = `
+        <dl>
+          <dt>일일 한도 (코인)</dt><dd>${formatNumFull(wl.upbit_daily)}</dd>
+          <dt>일일 잔여 (원화 환산)</dt><dd>${formatNumFull(wl.upbit_remaining_krw)}</dd>
+          <dt>최소 출금</dt><dd>${formatNumFull(wl.upbit_min)}</dd>
+        </dl>`;
+      const bhLimits = `
+        <dl>
+          <dt>일일 한도 (코인)</dt><dd>${formatNumFull(wl.bithumb_daily)}</dd>
+          <dt>최소 출금</dt><dd>${formatNumFull(wl.bithumb_min)}</dd>
+        </dl>`;
+
+      let netSection = "";
+      const hasUpNet = Object.prototype.hasOwnProperty.call(row, "upbit_networks");
+      const hasBhNet = Object.prototype.hasOwnProperty.call(row, "bithumb_networks");
+      if (!hasUpNet && !hasBhNet) {
+        netSection = `
+          <div class="coin-modal-section">
+            <h4>네트워크별 입출금</h4>
+            <p class="coin-modal-empty">입출금 API가 연동되지 않았거나 지갑 목록을 불러오지 못했습니다.</p>
+          </div>`;
+      } else {
+        netSection = `
+          <div class="coin-modal-section">
+            <h4>네트워크별 입출금</h4>
+            <div class="coin-modal-net-grid">
+              <div class="coin-modal-net-box upbit">
+                <h5>업비트</h5>
+                ${hasUpNet ? networkTableHtml(row.upbit_networks) : '<p class="coin-modal-empty">데이터 없음</p>'}
+              </div>
+              <div class="coin-modal-net-box bithumb">
+                <h5>빗썸</h5>
+                ${hasBhNet ? networkTableHtml(row.bithumb_networks) : '<p class="coin-modal-empty">데이터 없음</p>'}
+              </div>
+            </div>
+          </div>`;
+      }
+
+      coinModalBody.innerHTML = `
+        ${limitHint}
+        <div class="coin-modal-section">
+          <h4>해외 거래소 상장 여부</h4>
+          <p class="coin-modal-hint" style="margin-top:0">서버 기동 시점의 공개 심볼(레지스트리) 기준입니다.</p>
+          <div class="coin-modal-cex-list">
+            ${binanceListingsHtml(row)}
+            ${bybitListingsHtml(row)}
+            ${bitgetListingsHtml(row)}
+            ${okxListingsHtml(row)}
+            ${gateListingsHtml(row)}
+          </div>
+        </div>
+        <div class="coin-modal-section">
+          <h4>일일 출금 한도 (본인 계정)</h4>
+          <div class="coin-modal-limits">
+            <div class="coin-modal-limit-box upbit">
+              <div class="ex-label">업비트</div>
+              ${upLimits}
+            </div>
+            <div class="coin-modal-limit-box bithumb">
+              <div class="ex-label">빗썸</div>
+              ${bhLimits}
+            </div>
+          </div>
+        </div>
+        ${netSection}
+      `;
+      coinModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      coinModalClose.focus();
+    }
+
+    function closeCoinModal() {
+      coinModal.hidden = true;
+      document.body.style.overflow = "";
+    }
+
+    /** 두 개의 <td> 문자열: 입금, 출금 */
+    function walletDwTds(prefix, row) {
+      const w = row[prefix + "_wallet"];
+      if (!w) {
+        return `<td class="dw-cell">${dwDot(null, "입금")}</td><td class="dw-cell">${dwDot(null, "출금")}</td>`;
+      }
+      const d = w.deposit_available;
+      const wd = w.withdraw_available;
+      return `<td class="dw-cell">${dwDot(d, "입금")}</td><td class="dw-cell">${dwDot(wd, "출금")}</td>`;
+    }
+
+    function formatKP(v) {
+      if (v == null) return '<span class="kp-na">—</span>';
+      const cls = v > 0 ? "kp-pos" : v < 0 ? "kp-neg" : "kp-na";
+      const sign = v > 0 ? "+" : "";
+      return `<span class="${cls}">${sign}${v.toFixed(2)}%</span>`;
+    }
+
+    function riskBadge(v) {
+      if (v == null) return "";
+      if (v < 0) return '<span class="risk opp">역프</span>';
+      if (v < 1) return '<span class="risk safe">안전</span>';
+      if (v < 3) return '<span class="risk warn">주의</span>';
+      return '<span class="risk danger">위험</span>';
+    }
+
+    function rowHasPauseIssue(r) {
+      const lim = (w) =>
+        w && (w.deposit_available === false || w.withdraw_available === false);
+      return !!(lim(r.upbit_wallet) || lim(r.bithumb_wallet));
+    }
+
+    /** 업·빗 모두 지갑 데이터가 있고, 양쪽 모두 입금·출금 가능(네트워크 집계) */
+    function rowBothDwFullyOpen(r) {
+      const u = r.upbit_wallet;
+      const b = r.bithumb_wallet;
+      if (!u || !b) return false;
+      return (
+        u.deposit_available === true &&
+        u.withdraw_available === true &&
+        b.deposit_available === true &&
+        b.withdraw_available === true
+      );
+    }
+
+    function kpNum(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function sortRows(rows) {
+      const key = sortByEl.value;
+      return [...rows].sort((a, b) => {
+        if (key === "kp_upbit" || key === "kp_bithumb") {
+          const av = kpNum(a[key]) ?? -999;
+          const bv = kpNum(b[key]) ?? -999;
+          return bv - av;
+        }
+        if (key === "rp_upbit" || key === "rp_bithumb") {
+          const field = key === "rp_upbit" ? "kp_upbit" : "kp_bithumb";
+          const av = kpNum(a[field]);
+          const bv = kpNum(b[field]);
+          const aOrd = av == null ? Infinity : av;
+          const bOrd = bv == null ? Infinity : bv;
+          return aOrd - bOrd;
+        }
+        return b.gap_pct - a.gap_pct;
+      });
+    }
+
+    function tickerSearchQuery() {
+      return (tickerSearchEl && tickerSearchEl.value ? tickerSearchEl.value : "").trim().toUpperCase();
+    }
+
+    function filterRowsByTicker(rows) {
+      const q = tickerSearchQuery();
+      if (!q) return rows;
+      return rows.filter((r) => String(r.symbol || "").toUpperCase().includes(q));
+    }
+
+    /** 저가(매수) → 고가(매도) 쪽으로의 이동 */
+    function flowDirectionHtml(r) {
+      if (r.cheaper_on === "upbit") {
+        return (
+          '<span class="dir-flow" title="업비트가 더 쌈 → 빗썸이 비쌈 (업에서 매수·빗에서 매도 시나리오)">' +
+          '<span class="dir-end upbit">업</span><span class="dir-arrow">→</span><span class="dir-end bithumb">빗</span></span>'
+        );
+      }
+      if (r.cheaper_on === "bithumb") {
+        return (
+          '<span class="dir-flow" title="빗썸이 더 쌈 → 업비트가 비쌈 (빗에서 매수·업에서 매도 시나리오)">' +
+          '<span class="dir-end bithumb">빗</span><span class="dir-arrow">→</span><span class="dir-end upbit">업</span></span>'
+        );
+      }
+      return '<span class="dir-flow dir-tie" title="양쪽 가격 동일">동일</span>';
+    }
+
+    function renderTable(rows) {
+      const allGaps = (lastPayload && lastPayload.gaps) || [];
+      const q = tickerSearchQuery();
+      let filtered = filterPauseEl.checked ? rows.filter(rowHasPauseIssue) : rows;
+      filtered = sortRows(filtered);
+      if (!filtered.length) {
+        let msg;
+        if (allGaps.length === 0) {
+          msg = "비교 가능한 공통 종목이 없습니다.";
+        } else if (rows.length === 0 && q) {
+          msg = `종목 검색 “${escHtml(q)}”에 일치하는 항목이 없습니다.`;
+        } else if (filterPauseEl.checked) {
+          msg = "현재 필터(입출금 이슈만)에 해당하는 종목이 없습니다.";
+        } else {
+          msg = "비교 가능한 공통 종목이 없습니다.";
+        }
+        tableWrap.innerHTML = `<div class="empty">${msg}</div>`;
+        return;
+      }
+      const head = `
+        <table class="main-gaps-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th class="col-mid">종목</th>
+              <th class="col-mid">갭 %</th>
+              <th class="col-mid">김프(업)</th>
+              <th class="col-mid">김프(빗)</th>
+              <th colspan="2" style="text-align:center;color:var(--upbit)">업비트</th>
+              <th colspan="2" style="text-align:center;color:var(--bithumb)">빗썸</th>
+              <th class="col-mid" title="저가(매수) 거래소 → 고가(매도) 거래소">방향</th>
+              <th>업비트</th>
+              <th>빗썸</th>
+            </tr>
+            <tr>
+              <th></th>
+              <th class="col-mid"></th>
+              <th class="col-mid"></th>
+              <th class="col-mid"></th>
+              <th class="col-mid"></th>
+              <th class="dw-col">입금</th>
+              <th class="dw-col">출금</th>
+              <th class="dw-col">입금</th>
+              <th class="dw-col">출금</th>
+              <th class="col-mid dir-sub" title="저가(매수) 거래소 → 고가(매도) 거래소">매수→매도</th>
+              <th>가격</th>
+              <th>가격</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      const body = filtered.slice(0, 200).map((r, i) => {
+        const kpU = r.kp_upbit;
+        const kpB = r.kp_bithumb;
+        const riskU = riskBadge(kpU);
+        const riskB = riskBadge(kpB);
+        let rowExtra = "";
+        if (rowBothDwFullyOpen(r)) rowExtra = " coin-row-dw-full";
+        else if (rowHasPauseIssue(r)) rowExtra = " coin-row-dw-issue";
+        const rowCls = "coin-row" + rowExtra;
+        return `
+          <tr class="${rowCls}" data-symbol="${r.symbol}">
+            <td>${i + 1}</td>
+            <td class="sym-cell col-mid"><span class="sym-text">${r.symbol}</span></td>
+            <td class="gap col-mid">${r.gap_pct.toFixed(2)}%</td>
+            <td class="col-mid">${formatKP(kpU)}${riskU}</td>
+            <td class="col-mid">${formatKP(kpB)}${riskB}</td>
+            ${walletDwTds("upbit", r)}
+            ${walletDwTds("bithumb", r)}
+            <td class="col-mid">${flowDirectionHtml(r)}</td>
+            <td style="color:var(--upbit)">${formatKRW(r.upbit)}</td>
+            <td style="color:var(--bithumb)">${formatKRW(r.bithumb)}</td>
+          </tr>
+        `;
+      }).join("");
+      tableWrap.innerHTML = head + body + "</tbody></table>";
+      if (filtered.length > 200) {
+        tableWrap.innerHTML += `<p class="loading">상위 200개만 표시 (표시 대상 ${filtered.length}개)</p>`;
+      }
+    }
+
+    function renderBlockedSection(list) {
+      const w = (lastPayload && lastPayload.meta && lastPayload.meta.wallet) || {};
+      const fullBlocked = (lastPayload && lastPayload.wallet_fully_blocked) || [];
+      const q = tickerSearchQuery();
+      if (!list || !list.length) {
+        let msg = "현재 전 네트워크 중단인 공통 종목이 없습니다.";
+        if (w.mode === "off") msg = "입출금 API 미연동 — 프로젝트 루트 .env에 UPBIT_* / BITHUMB_* 키를 넣으면 표시됩니다.";
+        else if (w.mode === "failed") msg = "입출금 API 오류로 지갑 상태를 불러오지 못했습니다.";
+        else if (q && fullBlocked.length > 0) {
+          msg = `종목 검색 “${escHtml(q)}”에 일치하는 항목이 없습니다.`;
+        }
+        blockedWrap.innerHTML = `<div class="empty">${msg}</div>`;
+        blockedMeta.innerHTML = "";
+        return;
+      }
+      const head = `
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>종목</th>
+              <th>갭 %</th>
+              <th>입·출 모두 불가</th>
+              <th colspan="2" style="text-align:center;color:var(--upbit)">업비트</th>
+              <th colspan="2" style="text-align:center;color:var(--bithumb)">빗썸</th>
+            </tr>
+            <tr>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th>(거래소)</th>
+              <th class="dw-col">입금</th>
+              <th class="dw-col">출금</th>
+              <th class="dw-col">입금</th>
+              <th class="dw-col">출금</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      const sorted = [...list].sort((a, b) => b.gap_pct - a.gap_pct);
+      const body = sorted.slice(0, 100).map((r, i) => {
+        const uDead =
+          r.upbit_wallet &&
+          r.upbit_wallet.deposit_available === false &&
+          r.upbit_wallet.withdraw_available === false;
+        const bDead =
+          r.bithumb_wallet &&
+          r.bithumb_wallet.deposit_available === false &&
+          r.bithumb_wallet.withdraw_available === false;
+        const who = [];
+        if (uDead) who.push("업비트");
+        if (bDead) who.push("빗썸");
+        const whoStr = who.length ? who.join(", ") : "—";
+        return `
+          <tr class="coin-row" data-symbol="${r.symbol}">
+            <td>${i + 1}</td>
+            <td class="sym-cell"><span class="sym-text">${r.symbol}</span></td>
+            <td class="gap">${r.gap_pct.toFixed(2)}%</td>
+            <td>${whoStr}</td>
+            ${walletDwTds("upbit", r)}
+            ${walletDwTds("bithumb", r)}
+          </tr>
+        `;
+      }).join("");
+      blockedWrap.innerHTML = head + body + "</tbody></table>";
+      blockedMeta.innerHTML = `<span>전체 중단 종목 <strong>${list.length}</strong>개 (표시 상한 100)</span>`;
+    }
+
+    function walletModeLabel(w) {
+      if (!w) return "";
+      const m = {
+        off: "입출금 API 미설정",
+        on: "입출금 연동 OK",
+        partial: "입출금 일부만 로드",
+        failed: "입출금 로드 실패",
+      };
+      return m[w.mode] || "";
+    }
+
+    function renderRestrictedSection(list) {
+      const w = (lastPayload && lastPayload.meta && lastPayload.meta.wallet) || {};
+      const fullRest = (lastPayload && lastPayload.wallet_restricted) || [];
+      const q = tickerSearchQuery();
+      if (!list || !list.length) {
+        let msg = "제한 상태인 공통 종목이 없습니다.";
+        if (w.mode === "off") msg = "입출금 API 미연동 시 여기도 비어 있습니다.";
+        else if (q && fullRest.length > 0) {
+          msg = `종목 검색 “${escHtml(q)}”에 일치하는 항목이 없습니다.`;
+        }
+        restrictedWrap.innerHTML = `<div class="empty">${msg}</div>`;
+        restrictedMeta.innerHTML = "";
+        return;
+      }
+      const sorted = [...list].sort((a, b) => b.gap_pct - a.gap_pct);
+      const head = `
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>종목</th>
+              <th>갭 %</th>
+              <th colspan="2" style="text-align:center;color:var(--upbit)">업비트</th>
+              <th colspan="2" style="text-align:center;color:var(--bithumb)">빗썸</th>
+            </tr>
+            <tr>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th class="dw-col">입금</th>
+              <th class="dw-col">출금</th>
+              <th class="dw-col">입금</th>
+              <th class="dw-col">출금</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      const body = sorted.slice(0, 120).map((r, i) => `
+          <tr class="coin-row" data-symbol="${r.symbol}">
+            <td>${i + 1}</td>
+            <td class="sym-cell"><span class="sym-text">${r.symbol}</span></td>
+            <td class="gap">${r.gap_pct.toFixed(2)}%</td>
+            ${walletDwTds("upbit", r)}
+            ${walletDwTds("bithumb", r)}
+          </tr>
+        `).join("");
+      restrictedWrap.innerHTML = head + body + "</tbody></table>";
+      restrictedMeta.innerHTML = `<span>제한 종목 <strong>${list.length}</strong>개 (표시 상한 120)</span>`;
+    }
+
+    function refreshViews() {
+      if (!lastPayload) return;
+      renderTable(filterRowsByTicker(lastPayload.gaps || []));
+      renderRestrictedSection(filterRowsByTicker(lastPayload.wallet_restricted || []));
+      renderBlockedSection(filterRowsByTicker(lastPayload.wallet_fully_blocked || []));
+    }
+
+    const WS_RECONNECT_MS = 3000;
+    let ws = null;
+    let wsReconnectTimer = null;
+
+    function gapsWsUrl() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      return proto + "//" + location.host + "/ws/gaps";
+    }
+
+    function disconnectWs() {
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+      const s = ws;
+      ws = null;
+      if (s) {
+        s.onopen = s.onmessage = s.onerror = s.onclose = null;
+        try {
+          s.close();
+        } catch (_) {}
+      }
+    }
+
+    function applyPayload(data) {
+      if (!data || data.type === "error") return;
+      lastPayload = data;
+      setConnBadge("", "실시간");
+      const m = data.meta || {};
+      const w = m.wallet || {};
+      const errBits = [];
+      if (w.upbit_error) errBits.push(`업 ${w.upbit_error.slice(0, 48)}`);
+      if (w.bithumb_error) errBits.push(`빗 ${w.bithumb_error.slice(0, 48)}`);
+      const wl = walletModeLabel(w);
+      const errTitle = errBits.join(" | ").replace(/"/g, "'");
+      const usdtKrw = m.usdt_krw;
+      const kpAvail = m.kp_available ?? 0;
+      const wls = m.wl_status || "idle";
+      const wlc = m.wl_count || 0;
+      let wlSpan = "";
+      if (wls === "done" && wlc > 0) {
+        wlSpan = `<span title="출금 한도 API 캐시"> · 한도 <strong>${wlc}</strong>종</span>`;
+      } else if (wls === "loading") {
+        wlSpan = `<span> · 한도 로딩</span>`;
+      } else if (wls === "error") {
+        const wp = String(m.wl_progress || "").slice(0, 40);
+        wlSpan = `<span style="color:var(--warn)"> · 한도 오류${wp ? " " + escHtml(wp) : ""}</span>`;
+      }
+      if (usdtKrw) {
+        rateBar.innerHTML = `기준 환율: <strong>1 USDT = ₩${formatKRW(usdtKrw)}</strong> (업비트 KRW-USDT) · 바이낸스 심볼 <strong>${m.binance_symbols ?? "—"}</strong>개 · 김프 계산 가능 <strong>${kpAvail}</strong>개`;
+      } else {
+        rateBar.innerHTML = `기준 환율: <span style="color:var(--warn)">USDT/KRW 조회 실패</span>`;
+      }
+      metaEl.innerHTML = `
+          <span>비교 종목 <strong>${m.pairs_compared ?? "—"}</strong></span>
+          <span>업비트만 <strong>${m.upbit_only ?? "—"}</strong></span>
+          <span>빗썸만 <strong>${m.bithumb_only ?? "—"}</strong></span>
+          ${wl ? `<span title="${errTitle}"><strong>${wl}</strong></span>` : ""}
+          ${wlSpan}
+        `;
+      updateWlButton(m);
+      refreshViews();
+    }
+
+    function connectWs() {
+      if (ws) return;
+      setConnBadge("wait", "연결 중…");
+      const url = gapsWsUrl();
+      const socket = new WebSocket(url);
+      ws = socket;
+      socket.onopen = () => {
+        if (ws !== socket) return;
+        setConnBadge("wait", "수신 대기");
+      };
+      socket.onmessage = (ev) => {
+        if (ws !== socket) return;
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === "error") {
+            setConnBadge(
+              "err",
+              "스트림 오류 — " + String(data.detail || "").slice(0, 120)
+            );
+            return;
+          }
+          applyPayload(data);
+        } catch (e) {
+          setConnBadge("err", "메시지 파싱 오류 — " + (e.message || String(e)));
+        }
+      };
+      socket.onerror = () => {
+        if (ws !== socket) return;
+        setConnBadge("err", "연결 오류");
+      };
+      socket.onclose = () => {
+        if (ws !== socket) return;
+        ws = null;
+        setConnBadge("wait", "재연결 중…");
+        wsReconnectTimer = setTimeout(() => {
+          wsReconnectTimer = null;
+          connectWs();
+        }, WS_RECONNECT_MS);
+      };
+    }
+
+    function startRealtime() {
+      disconnectWs();
+      connectWs();
+    }
+
+    function updateWlButton(m) {
+      const s = m.wl_status || "idle";
+      const p = m.wl_progress || "";
+      if (s === "done") {
+        btnWl.textContent = "출금한도 새로고침";
+        btnWl.disabled = false;
+      } else if (s === "loading") {
+        btnWl.textContent = p ? `로딩… ${p}` : "로딩 중…";
+        btnWl.disabled = true;
+      } else if (s === "error") {
+        btnWl.textContent = "출금한도 재시도";
+        btnWl.disabled = false;
+      } else {
+        btnWl.textContent = "출금한도 조회";
+        btnWl.disabled = false;
+      }
+    }
+
+    btnWl.addEventListener("click", async () => {
+      btnWl.disabled = true;
+      btnWl.textContent = "요청 중…";
+      try {
+        await fetch("/api/refresh-limits", { method: "POST" });
+      } catch (e) {
+        btnWl.textContent = "요청 실패";
+        btnWl.disabled = false;
+        return;
+      }
+      if (lastPayload && lastPayload.meta) updateWlButton(lastPayload.meta);
+      else {
+        btnWl.textContent = "출금한도 새로고침";
+        btnWl.disabled = false;
+      }
+    });
+    filterPauseEl.addEventListener("change", () => refreshViews());
+    sortByEl.addEventListener("change", () => refreshViews());
+    tickerSearchEl.addEventListener("input", () => refreshViews());
+    tickerSearchEl.addEventListener("search", () => refreshViews());
+
+    document.querySelector(".wrap").addEventListener("click", (e) => {
+      const row = e.target.closest("tr.coin-row");
+      if (!row || !row.dataset.symbol) return;
+      e.preventDefault();
+      openCoinModal(row.dataset.symbol);
+    });
+    coinModalBackdrop.addEventListener("click", closeCoinModal);
+    coinModalClose.addEventListener("click", closeCoinModal);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !coinModal.hidden) closeCoinModal();
+    });
+
+    startRealtime();
+  </script>
+</body>
+</html>

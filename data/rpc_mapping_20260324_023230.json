@@ -1,0 +1,252 @@
+{
+  "BTC": {
+    "chain": "Bitcoin",
+    "rpc": "https://blockstream.info/api",
+    "type": "bitcoin",
+    "block_time_sec": 600,
+    "net_type": "BTC",
+    "network_name": "Bitcoin",
+    "currencies": [
+      "BTC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  },
+  "ETH": {
+    "chain": "Ethereum",
+    "rpc": "https://eth.llamarpc.com",
+    "type": "evm",
+    "block_time_sec": 12,
+    "net_type": "ETH",
+    "network_name": "Ethereum",
+    "currencies": [
+      "ETH"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  },
+  "ARB": {
+    "chain": "Arbitrum One",
+    "rpc": "https://arb1.arbitrum.io/rpc",
+    "type": "evm",
+    "block_time_sec": 0.25,
+    "net_type": "ARB",
+    "network_name": "Arbitrum One",
+    "currencies": [
+      "ETH"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  },
+  "OP": {
+    "chain": "Optimism",
+    "rpc": "https://mainnet.optimism.io",
+    "type": "evm",
+    "block_time_sec": 2,
+    "net_type": "OP",
+    "network_name": "Optimism",
+    "currencies": [
+      "ETH"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "XRP": {
+    "chain": "XRP Ledger",
+    "rpc": "https://xrplcluster.com",
+    "type": "xrpl",
+    "block_time_sec": 4,
+    "net_type": "XRP",
+    "network_name": "XRP Ledger",
+    "currencies": [
+      "XRP"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  },
+  "SOL": {
+    "chain": "Solana",
+    "rpc": "https://api.mainnet-beta.solana.com",
+    "type": "solana",
+    "block_time_sec": 0.4,
+    "net_type": "SOL",
+    "network_name": "Solana",
+    "currencies": [
+      "SOL",
+      "USDT"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  },
+  "ERC-20": {
+    "chain": "Ethereum",
+    "rpc": "https://eth.llamarpc.com",
+    "type": "evm",
+    "block_time_sec": 12,
+    "net_type": "ERC-20",
+    "network_name": "Ethereum",
+    "currencies": [
+      "USDT",
+      "SHIB"
+    ],
+    "currency_count": 2,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  },
+  "TRC-20": {
+    "chain": "Tron",
+    "rpc": "https://api.trongrid.io",
+    "type": "tron",
+    "block_time_sec": 3,
+    "net_type": "TRC-20",
+    "network_name": "Tron",
+    "currencies": [
+      "USDT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  },
+  "ATOM": {
+    "chain": "Cosmos Hub",
+    "rpc": "https://cosmos-rest.publicnode.com",
+    "type": "cosmos",
+    "block_time_sec": 6,
+    "net_type": "ATOM",
+    "network_name": "Cosmos Hub",
+    "currencies": [
+      "ATOM"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "DOGE": {
+    "chain": "",
+    "rpc": "",
+    "type": "unknown",
+    "block_time_sec": null,
+    "net_type": "DOGE",
+    "network_name": "Dogecoin",
+    "currencies": [
+      "DOGE"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "POLYGON": {
+    "chain": "Polygon",
+    "rpc": "https://polygon-rpc.com",
+    "type": "evm",
+    "block_time_sec": 2,
+    "net_type": "POLYGON",
+    "network_name": "Polygon",
+    "currencies": [
+      "MATIC"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "APT": {
+    "chain": "Aptos",
+    "rpc": "https://fullnode.mainnet.aptoslabs.com/v1",
+    "type": "aptos",
+    "block_time_sec": 1,
+    "net_type": "APT",
+    "network_name": "Aptos",
+    "currencies": [
+      "APT"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "SUI": {
+    "chain": "Sui",
+    "rpc": "https://fullnode.mainnet.sui.io",
+    "type": "sui",
+    "block_time_sec": 0.5,
+    "net_type": "SUI",
+    "network_name": "Sui",
+    "currencies": [
+      "SUI"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "KCT": {
+    "chain": "Klaytn",
+    "rpc": "https://public-en-cypress.klaytn.net",
+    "type": "evm",
+    "block_time_sec": 1,
+    "net_type": "KCT",
+    "network_name": "Klaytn",
+    "currencies": [
+      "KLAY"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "TON": {
+    "chain": "TON",
+    "rpc": "https://toncenter.com/api/v2",
+    "type": "ton",
+    "block_time_sec": 5,
+    "net_type": "TON",
+    "network_name": "TON",
+    "currencies": [
+      "TON"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit"
+    ]
+  },
+  "STARKNET": {
+    "chain": "Starknet",
+    "rpc": "https://starknet-mainnet.public.blastapi.io",
+    "type": "starknet",
+    "block_time_sec": 30,
+    "net_type": "STARKNET",
+    "network_name": "Starknet",
+    "currencies": [
+      "STRK"
+    ],
+    "currency_count": 1,
+    "exchanges": [
+      "upbit",
+      "bithumb"
+    ]
+  }
+}
