@@ -34,11 +34,14 @@ BINANCE_TICKER = "https://api.binance.com/api/v3/ticker/price"
 BINANCE_EXCHANGE_INFO = "https://api.binance.com/api/v3/exchangeInfo"
 BINANCE_FAPI_EXCHANGE_INFO = "https://fapi.binance.com/fapi/v1/exchangeInfo"
 BYBIT_INSTRUMENTS = "https://api.bybit.com/v5/market/instruments-info"
+BYBIT_TICKERS = "https://api.bybit.com/v5/market/tickers"
 BITGET_SPOT_SYMBOLS = "https://api.bitget.com/api/v2/spot/public/symbols"
 BITGET_USDT_FUTURES = "https://api.bitget.com/api/v2/mix/market/contracts"
 OKX_INSTRUMENTS = "https://www.okx.com/api/v5/public/instruments"
+OKX_TICKERS = "https://www.okx.com/api/v5/market/tickers"
 GATE_SPOT_PAIRS = "https://api.gateio.ws/api/v4/spot/currency_pairs"
 GATE_USDT_CONTRACTS = "https://api.gateio.ws/api/v4/futures/usdt/contracts"
+GATE_SPOT_TICKERS = "https://api.gateio.ws/api/v4/spot/tickers"
 UPBIT_WITHDRAW_CHANCE = "https://api.upbit.com/v1/withdraws/chance"
 BITHUMB_WITHDRAW_CHANCE = "https://api.bithumb.com/v1/withdraws/chance"
 
@@ -112,14 +115,358 @@ UPBIT_ACCESS_KEY = os.getenv("UPBIT_ACCESS_KEY", "")
 UPBIT_SECRET_KEY = os.getenv("UPBIT_SECRET_KEY", "")
 BITHUMB_ACCESS_KEY = os.getenv("BITHUMB_ACCESS_KEY", "")
 BITHUMB_SECRET_KEY = os.getenv("BITHUMB_SECRET_KEY", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+_TELEGRAM_CHAT_ID_FALLBACK = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+_TELEGRAM_ALERT_CHAT_IDS_RAW = os.getenv("TELEGRAM_ALERT_CHAT_IDS", "").strip()
+_TELEGRAM_ADMIN_CHAT_IDS_RAW = os.getenv("TELEGRAM_ADMIN_CHAT_IDS", "").strip()
+_TELEGRAM_POLL_INTERVAL_SEC = max(1.0, float(os.getenv("TELEGRAM_POLL_INTERVAL_SEC", "2")))
+_ALERT_COOLDOWN_SEC = max(10.0, float(os.getenv("ALERT_COOLDOWN_SEC", "300")))
+_TELEGRAM_BOT_ENABLED = os.getenv("TELEGRAM_BOT_ENABLED", "true").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+_ALERT_CONFIG_PATH = Path(
+    os.getenv("ALERT_CONFIG_PATH", str(_ROOT / "data" / "alert_config.json"))
+).resolve()
 
 _LOG = logging.getLogger(__name__)
 
 
+def _parse_csv_values(raw: str) -> list[str]:
+    return [v.strip() for v in raw.split(",") if v.strip()]
+
+
+def _parse_float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _sorted_upper_unique(values: list[str]) -> list[str]:
+    return sorted({v.strip().upper() for v in values if v.strip()})
+
+
+_ALERT_RUNTIME: dict[str, Any] = {
+    "gap_threshold_pct": max(0.1, _parse_float_env("ALERT_GAP_THRESHOLD", 4.0)),
+    "banned_tickers": _sorted_upper_unique(_parse_csv_values(os.getenv("ALERT_BANNED_TICKERS", ""))),
+    "alert_chat_ids": _parse_csv_values(_TELEGRAM_ALERT_CHAT_IDS_RAW)
+    or ([_TELEGRAM_CHAT_ID_FALLBACK] if _TELEGRAM_CHAT_ID_FALLBACK else []),
+}
+_ALERT_CFG_LOCK = asyncio.Lock()
+_ALERT_ABOVE_THRESHOLD: set[str] = set()
+_ALERT_LAST_SENT_AT: dict[str, float] = {}
+_TELEGRAM_UPDATE_OFFSET: int | None = None
+_ALERT_WATCHER_TASK: asyncio.Task[None] | None = None
+_TELEGRAM_POLL_TASK: asyncio.Task[None] | None = None
+
+
+def _admin_chat_ids() -> set[str]:
+    values = _parse_csv_values(_TELEGRAM_ADMIN_CHAT_IDS_RAW)
+    if not values:
+        values = _ALERT_RUNTIME.get("alert_chat_ids", [])
+    return set(values)
+
+
+def _normalize_alert_config(raw: dict[str, Any]) -> dict[str, Any]:
+    threshold = raw.get("gap_threshold_pct", _ALERT_RUNTIME["gap_threshold_pct"])
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        threshold = float(_ALERT_RUNTIME["gap_threshold_pct"])
+    threshold = max(0.1, threshold)
+
+    banned_raw = raw.get("banned_tickers", [])
+    if not isinstance(banned_raw, list):
+        banned_raw = []
+    banned = _sorted_upper_unique([str(x) for x in banned_raw])
+
+    chats_raw = raw.get("alert_chat_ids", [])
+    if not isinstance(chats_raw, list):
+        chats_raw = []
+    chats = _parse_csv_values(",".join(str(x) for x in chats_raw))
+    if not chats:
+        fallback = _ALERT_RUNTIME.get("alert_chat_ids", [])
+        chats = [str(x).strip() for x in fallback if str(x).strip()]
+
+    return {
+        "gap_threshold_pct": threshold,
+        "banned_tickers": banned,
+        "alert_chat_ids": chats,
+    }
+
+
+async def _save_alert_config() -> None:
+    _ALERT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(_ALERT_RUNTIME, ensure_ascii=False, indent=2)
+    _ALERT_CONFIG_PATH.write_text(payload, encoding="utf-8")
+
+
+async def _load_alert_config() -> None:
+    if not _ALERT_CONFIG_PATH.is_file():
+        return
+    try:
+        raw = json.loads(_ALERT_CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception as e:
+        _LOG.warning("알림 설정 파일 파싱 실패: %s", e)
+        return
+    if not isinstance(raw, dict):
+        return
+    async with _ALERT_CFG_LOCK:
+        _ALERT_RUNTIME.update(_normalize_alert_config(raw))
+
+
+async def _alert_config_snapshot() -> dict[str, Any]:
+    async with _ALERT_CFG_LOCK:
+        return {
+            "gap_threshold_pct": float(_ALERT_RUNTIME["gap_threshold_pct"]),
+            "banned_tickers": list(_ALERT_RUNTIME["banned_tickers"]),
+            "alert_chat_ids": list(_ALERT_RUNTIME["alert_chat_ids"]),
+        }
+
+
+async def _send_telegram_message(chat_id: str, text: str) -> None:
+    if not _TELEGRAM_BOT_ENABLED or not TELEGRAM_BOT_TOKEN or not chat_id:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            url,
+            json={"chat_id": chat_id, "text": text},
+        )
+        resp.raise_for_status()
+
+
+async def _broadcast_alert(text: str) -> None:
+    cfg = await _alert_config_snapshot()
+    for chat_id in cfg["alert_chat_ids"]:
+        try:
+            await _send_telegram_message(str(chat_id), text)
+        except Exception as e:
+            _LOG.warning("텔레그램 알림 전송 실패(chat_id=%s): %s", chat_id, e)
+
+
+def _command_help_text() -> str:
+    return (
+        "사용 가능한 명령어\n"
+        "/status - 현재 알림 설정 확인\n"
+        "/set_gap <퍼센트> - 갭 알림 기준 변경\n"
+        "/ban <티커> - 해당 티커 알림 제외\n"
+        "/unban <티커> - 티커 제외 해제\n"
+        "/list_ban - 제외 티커 목록 조회"
+    )
+
+
+async def _handle_telegram_command(chat_id: str, text: str) -> None:
+    cmdline = text.strip()
+    if not cmdline.startswith("/"):
+        return
+    if "@" in cmdline:
+        cmdline = cmdline.split("@", 1)[0] + cmdline[cmdline.find(" ") :] if " " in cmdline else cmdline.split("@", 1)[0]
+    parts = cmdline.split()
+    if not parts:
+        return
+
+    cmd = parts[0].lower()
+    if cmd in ("/help", "/start"):
+        await _send_telegram_message(chat_id, _command_help_text())
+        return
+
+    is_admin = chat_id in _admin_chat_ids()
+    if cmd in ("/set_gap", "/ban", "/unban") and not is_admin:
+        await _send_telegram_message(chat_id, "권한이 없습니다. 관리자에게 문의하세요.")
+        return
+
+    if cmd == "/status":
+        cfg = await _alert_config_snapshot()
+        banned = ", ".join(cfg["banned_tickers"]) if cfg["banned_tickers"] else "(없음)"
+        chats = ", ".join(cfg["alert_chat_ids"]) if cfg["alert_chat_ids"] else "(없음)"
+        await _send_telegram_message(
+            chat_id,
+            f"현재 설정\n- gap_threshold_pct: {cfg['gap_threshold_pct']:.4f}%\n- banned_tickers: {banned}\n- alert_chat_ids: {chats}",
+        )
+        return
+
+    if cmd == "/list_ban":
+        cfg = await _alert_config_snapshot()
+        banned = ", ".join(cfg["banned_tickers"]) if cfg["banned_tickers"] else "(없음)"
+        await _send_telegram_message(chat_id, f"현재 제외 티커: {banned}")
+        return
+
+    if cmd == "/set_gap":
+        if len(parts) < 2:
+            await _send_telegram_message(chat_id, "사용법: /set_gap <퍼센트>")
+            return
+        try:
+            value = float(parts[1])
+            if value <= 0:
+                raise ValueError
+        except ValueError:
+            await _send_telegram_message(chat_id, "숫자를 올바르게 입력하세요. 예: /set_gap 5")
+            return
+        async with _ALERT_CFG_LOCK:
+            _ALERT_RUNTIME["gap_threshold_pct"] = value
+            await _save_alert_config()
+        await _send_telegram_message(chat_id, f"갭 알림 기준을 {value:.4f}%로 변경했습니다.")
+        return
+
+    if cmd == "/ban":
+        if len(parts) < 2:
+            await _send_telegram_message(chat_id, "사용법: /ban <티커>")
+            return
+        ticker = parts[1].upper().strip()
+        async with _ALERT_CFG_LOCK:
+            current = set(_ALERT_RUNTIME["banned_tickers"])
+            current.add(ticker)
+            _ALERT_RUNTIME["banned_tickers"] = sorted(current)
+            await _save_alert_config()
+            _ALERT_ABOVE_THRESHOLD.discard(ticker)
+        await _send_telegram_message(chat_id, f"{ticker} 티커를 알림 제외 목록에 추가했습니다.")
+        return
+
+    if cmd == "/unban":
+        if len(parts) < 2:
+            await _send_telegram_message(chat_id, "사용법: /unban <티커>")
+            return
+        ticker = parts[1].upper().strip()
+        async with _ALERT_CFG_LOCK:
+            current = set(_ALERT_RUNTIME["banned_tickers"])
+            current.discard(ticker)
+            _ALERT_RUNTIME["banned_tickers"] = sorted(current)
+            await _save_alert_config()
+        await _send_telegram_message(chat_id, f"{ticker} 티커를 알림 제외 목록에서 제거했습니다.")
+        return
+
+    await _send_telegram_message(chat_id, _command_help_text())
+
+
+async def _poll_telegram_commands() -> None:
+    global _TELEGRAM_UPDATE_OFFSET
+    if not _TELEGRAM_BOT_ENABLED or not TELEGRAM_BOT_TOKEN:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+    while True:
+        try:
+            params: dict[str, Any] = {"timeout": 20}
+            if _TELEGRAM_UPDATE_OFFSET is not None:
+                params["offset"] = _TELEGRAM_UPDATE_OFFSET + 1
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+            updates = data.get("result", []) if isinstance(data, dict) else []
+            if isinstance(updates, list):
+                for upd in updates:
+                    if not isinstance(upd, dict):
+                        continue
+                    update_id = upd.get("update_id")
+                    if isinstance(update_id, int):
+                        _TELEGRAM_UPDATE_OFFSET = update_id
+                    msg = upd.get("message") or upd.get("edited_message")
+                    if not isinstance(msg, dict):
+                        continue
+                    text = msg.get("text")
+                    chat = msg.get("chat", {})
+                    chat_id = str(chat.get("id", "")).strip()
+                    if not chat_id or not isinstance(text, str):
+                        continue
+                    try:
+                        await _handle_telegram_command(chat_id, text)
+                    except Exception as e:
+                        _LOG.warning("텔레그램 명령 처리 실패: %s", e)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            _LOG.warning("텔레그램 getUpdates 폴링 실패: %s", e)
+        try:
+            await asyncio.sleep(_TELEGRAM_POLL_INTERVAL_SEC)
+        except asyncio.CancelledError:
+            break
+
+
+async def _run_gap_alert_watcher() -> None:
+    if not _TELEGRAM_BOT_ENABLED:
+        return
+    while True:
+        try:
+            payload = await _compute_gaps_payload()
+            rows = payload.get("gaps", []) if isinstance(payload, dict) else []
+            if isinstance(rows, list):
+                cfg = await _alert_config_snapshot()
+                threshold = float(cfg["gap_threshold_pct"])
+                banned = set(cfg["banned_tickers"])
+                now = time.time()
+                alive_above: set[str] = set()
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    sym = str(row.get("symbol", "")).upper().strip()
+                    if not sym:
+                        continue
+                    if sym in banned:
+                        _ALERT_ABOVE_THRESHOLD.discard(sym)
+                        continue
+                    try:
+                        gap = float(row.get("gap_pct", 0.0))
+                    except (TypeError, ValueError):
+                        continue
+                    if gap >= threshold:
+                        alive_above.add(sym)
+                        prev = _ALERT_LAST_SENT_AT.get(sym, 0.0)
+                        # 임계값 위에 계속 머물러도 쿨다운 주기마다 반복 알림.
+                        should_send = (now - prev) >= _ALERT_COOLDOWN_SEC
+                        if should_send:
+                            cheaper_on = row.get("cheaper_on", "unknown")
+                            upbit = row.get("upbit")
+                            bithumb = row.get("bithumb")
+                            msg = (
+                                f"[갭 알림] {sym}\n"
+                                f"- gap: {gap:.4f}% (기준 {threshold:.4f}%)\n"
+                                f"- cheaper_on: {cheaper_on}\n"
+                                f"- upbit: {upbit}\n"
+                                f"- bithumb: {bithumb}"
+                            )
+                            await _broadcast_alert(msg)
+                            _ALERT_LAST_SENT_AT[sym] = now
+                _ALERT_ABOVE_THRESHOLD.intersection_update(alive_above)
+                _ALERT_ABOVE_THRESHOLD.update(alive_above)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            _LOG.warning("갭 알림 워커 실패: %s", e)
+        try:
+            await asyncio.sleep(_GAP_WS_INTERVAL_SEC)
+        except asyncio.CancelledError:
+            break
+
+
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
+    global _ALERT_WATCHER_TASK, _TELEGRAM_POLL_TASK
+    await _load_alert_config()
     await _load_exchange_registries_at_startup()
+    if _TELEGRAM_BOT_ENABLED:
+        _ALERT_WATCHER_TASK = asyncio.create_task(_run_gap_alert_watcher())
+    if _TELEGRAM_BOT_ENABLED and TELEGRAM_BOT_TOKEN:
+        _TELEGRAM_POLL_TASK = asyncio.create_task(_poll_telegram_commands())
     yield
+    if _ALERT_WATCHER_TASK:
+        _ALERT_WATCHER_TASK.cancel()
+        try:
+            await _ALERT_WATCHER_TASK
+        except asyncio.CancelledError:
+            pass
+    if _TELEGRAM_POLL_TASK:
+        _TELEGRAM_POLL_TASK.cancel()
+        try:
+            await _TELEGRAM_POLL_TASK
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Upbit–Bithumb gap dashboard", lifespan=_app_lifespan)
@@ -340,6 +687,13 @@ _wl_loading: bool = False
 _wl_status: str = "idle"
 _wl_progress: str = ""
 _wl_task: asyncio.Task[None] | None = None
+_wl_last_error: str = ""
+_wl_stats: dict[str, int] = {
+    "upbit_attempted": 0,
+    "upbit_success": 0,
+    "bithumb_attempted": 0,
+    "bithumb_success": 0,
+}
 
 
 def _safe_float(v: Any) -> float | None:
@@ -352,13 +706,21 @@ def _safe_float(v: Any) -> float | None:
 
 
 async def _load_withdraw_limits() -> None:
-    global _wl_cache, _wl_ts, _wl_loading, _wl_status, _wl_progress
+    global _wl_cache, _wl_ts, _wl_loading, _wl_status, _wl_progress, _wl_last_error, _wl_stats
     if _wl_loading:
         return
     _wl_loading = True
     _wl_status = "loading"
     _wl_progress = "시작"
+    _wl_last_error = ""
+    _wl_stats = {
+        "upbit_attempted": 0,
+        "upbit_success": 0,
+        "bithumb_attempted": 0,
+        "bithumb_success": 0,
+    }
     result: dict[str, dict[str, Any]] = {}
+    first_error: str | None = None
 
     try:
         async with httpx.AsyncClient(headers={"Accept": "application/json"}) as client:
@@ -371,7 +733,10 @@ async def _load_withdraw_limits() -> None:
                     )
                     r.raise_for_status()
                     up_wallet: list[dict] = r.json() if isinstance(r.json(), list) else []
-                except Exception:
+                except Exception as e:
+                    if first_error is None:
+                        first_error = f"업비트 지갑 목록 조회 실패: {type(e).__name__}"
+                    _LOG.warning("업비트 지갑 목록 조회 실패: %s", e)
                     up_wallet = []
 
                 cur_net: dict[str, str] = {}
@@ -385,6 +750,7 @@ async def _load_withdraw_limits() -> None:
                 for idx, (cur, nt) in enumerate(cur_net.items()):
                     _wl_progress = f"업비트 {idx + 1}/{total} ({cur})"
                     params = {"currency": cur, "net_type": nt}
+                    _wl_stats["upbit_attempted"] += 1
                     try:
                         headers = _upbit_auth_header_with_params(params)
                         r = await client.get(
@@ -395,6 +761,8 @@ async def _load_withdraw_limits() -> None:
                         )
                         if r.status_code == 403:
                             _wl_progress = "업비트 출금조회 권한 없음"
+                            if first_error is None:
+                                first_error = "업비트 출금조회 권한 없음(403)"
                             break
                         r.raise_for_status()
                         wl = r.json().get("withdraw_limit", {})
@@ -404,8 +772,10 @@ async def _load_withdraw_limits() -> None:
                             wl.get("remaining_daily_krw")
                         )
                         result[cur]["upbit_min"] = _safe_float(wl.get("minimum"))
-                    except Exception:
-                        pass
+                        _wl_stats["upbit_success"] += 1
+                    except Exception as e:
+                        if first_error is None:
+                            first_error = f"업비트 {cur} 한도 조회 실패: {type(e).__name__}"
                     await asyncio.sleep(0.12)
 
             # ── Bithumb ──
@@ -417,7 +787,10 @@ async def _load_withdraw_limits() -> None:
                     )
                     r.raise_for_status()
                     bh_wallet: list[dict] = r.json() if isinstance(r.json(), list) else []
-                except Exception:
+                except Exception as e:
+                    if first_error is None:
+                        first_error = f"빗썸 지갑 목록 조회 실패: {type(e).__name__}"
+                    _LOG.warning("빗썸 지갑 목록 조회 실패: %s", e)
                     bh_wallet = []
 
                 bh_cur_net: dict[str, str] = {}
@@ -433,6 +806,7 @@ async def _load_withdraw_limits() -> None:
                 for idx, (cur, nt) in enumerate(bh_cur_net.items()):
                     _wl_progress = f"빗썸 {idx + 1}/{total} ({cur})"
                     params = {"currency": cur, "net_type": nt}
+                    _wl_stats["bithumb_attempted"] += 1
                     try:
                         headers = _bithumb_auth_header_with_params(params)
                         r = await client.get(
@@ -443,23 +817,33 @@ async def _load_withdraw_limits() -> None:
                         )
                         if r.status_code in (401, 403):
                             _wl_progress = "빗썸 출금조회 권한 없음"
+                            if first_error is None:
+                                first_error = f"빗썸 출금조회 권한 없음({r.status_code})"
                             break
                         r.raise_for_status()
                         wl = r.json().get("withdraw_limit", {})
                         result.setdefault(cur, {})
                         result[cur]["bithumb_daily"] = _safe_float(wl.get("daily"))
                         result[cur]["bithumb_min"] = _safe_float(wl.get("minimum"))
-                    except Exception:
-                        pass
+                        _wl_stats["bithumb_success"] += 1
+                    except Exception as e:
+                        if first_error is None:
+                            first_error = f"빗썸 {cur} 한도 조회 실패: {type(e).__name__}"
                     await asyncio.sleep(0.22)
 
         _wl_cache = result
         _wl_ts = time.time()
         _wl_status = "done"
-        _wl_progress = f"완료 ({len(result)}개)"
+        if len(result) == 0 and first_error:
+            _wl_last_error = first_error
+            _wl_progress = f"완료 (0개) · {first_error}"
+        else:
+            _wl_progress = f"완료 ({len(result)}개)"
     except Exception as e:
         _wl_status = "error"
-        _wl_progress = str(e)[:120]
+        _wl_last_error = f"{type(e).__name__}: {str(e)[:120]}"
+        _wl_progress = _wl_last_error
+        _LOG.warning("출금한도 로더 실패: %s", e)
     finally:
         _wl_loading = False
 
@@ -533,6 +917,129 @@ async def _fetch_binance_usdt_prices(client: httpx.AsyncClient) -> dict[str, flo
         return out
     except Exception:
         return {}
+
+
+async def _fetch_bybit_usdt_spot_prices(client: httpx.AsyncClient) -> dict[str, float]:
+    """Bybit spot tickers에서 USDT 페어 가격(베이스→가격)."""
+    out: dict[str, float] = {}
+    try:
+        r = await client.get(BYBIT_TICKERS, params={"category": "spot"}, timeout=45.0)
+        r.raise_for_status()
+        body = r.json()
+        result = body.get("result") if isinstance(body, dict) else None
+        items = result.get("list") if isinstance(result, dict) else None
+        if not isinstance(items, list):
+            return out
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            sym = str(item.get("symbol") or "").upper()
+            if not sym.endswith("USDT"):
+                continue
+            base = sym[: -len("USDT")]
+            if not base:
+                continue
+            try:
+                price = float(item.get("lastPrice") or 0)
+            except Exception:
+                continue
+            if price > 0 and base not in out:
+                out[base] = price
+    except Exception as e:
+        _LOG.info("Bybit spot tickers 로드 실패(김프 fallback): %s", e)
+    return out
+
+
+async def _fetch_okx_usdt_spot_prices(client: httpx.AsyncClient) -> dict[str, float]:
+    """OKX spot tickers에서 USDT 페어 가격(베이스→가격)."""
+    out: dict[str, float] = {}
+    try:
+        r = await client.get(OKX_TICKERS, params={"instType": "SPOT"}, timeout=45.0)
+        r.raise_for_status()
+        body = r.json()
+        items = body.get("data") if isinstance(body, dict) else None
+        if not isinstance(items, list):
+            return out
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            inst = str(item.get("instId") or "").upper()
+            if not inst.endswith("-USDT"):
+                continue
+            base = inst.split("-", 1)[0]
+            if not base:
+                continue
+            try:
+                price = float(item.get("last") or 0)
+            except Exception:
+                continue
+            if price > 0 and base not in out:
+                out[base] = price
+    except Exception as e:
+        _LOG.info("OKX spot tickers 로드 실패(김프 fallback): %s", e)
+    return out
+
+
+async def _fetch_gate_usdt_spot_prices(client: httpx.AsyncClient) -> dict[str, float]:
+    """Gate.io spot tickers에서 USDT 페어 가격(베이스→가격)."""
+    out: dict[str, float] = {}
+    try:
+        r = await client.get(GATE_SPOT_TICKERS, timeout=45.0)
+        r.raise_for_status()
+        items = r.json()
+        if not isinstance(items, list):
+            return out
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            pair = str(item.get("currency_pair") or "").upper()
+            if not pair.endswith("_USDT"):
+                continue
+            base = pair.split("_", 1)[0]
+            if not base:
+                continue
+            try:
+                price = float(item.get("last") or 0)
+            except Exception:
+                continue
+            if price > 0 and base not in out:
+                out[base] = price
+    except Exception as e:
+        _LOG.info("Gate spot tickers 로드 실패(김프 fallback): %s", e)
+    return out
+
+
+async def _fetch_reference_usdt_prices(
+    client: httpx.AsyncClient,
+) -> tuple[dict[str, float], dict[str, str], dict[str, int]]:
+    """
+    김프 기준 USDT 가격을 바이낸스가 없을 때 다른 거래소로 fallback.
+    우선순위: binance -> bybit -> okx -> gate
+    """
+    bn_t = asyncio.create_task(_fetch_binance_usdt_prices(client))
+    yb_t = asyncio.create_task(_fetch_bybit_usdt_spot_prices(client))
+    ox_t = asyncio.create_task(_fetch_okx_usdt_spot_prices(client))
+    gt_t = asyncio.create_task(_fetch_gate_usdt_spot_prices(client))
+    bn, yb, ox, gt = await asyncio.gather(bn_t, yb_t, ox_t, gt_t)
+
+    prices: dict[str, float] = {}
+    sources: dict[str, str] = {}
+    stats: dict[str, int] = {"binance": 0, "bybit": 0, "okx": 0, "gate": 0}
+
+    for base, p in bn.items():
+        prices[base] = p
+        sources[base] = "binance"
+        stats["binance"] += 1
+
+    for name, mp in (("bybit", yb), ("okx", ox), ("gate", gt)):
+        for base, p in mp.items():
+            if base in prices:
+                continue
+            prices[base] = p
+            sources[base] = name
+            stats[name] += 1
+
+    return prices, sources, stats
 
 
 async def _load_binance_spot_registry(client: httpx.AsyncClient) -> None:
@@ -944,22 +1451,47 @@ def _binance_spot_has_usdt(base: str) -> bool:
     return base in _BINANCE_SPOT_USDT_BASES
 
 
+def _any_spot_has_usdt(base: str) -> bool:
+    """
+    어떤 거래소든 SPOT·USDT로 거래 가능한 베이스인지 판별.
+    레지스트리가 전부 비어 있으면(기동 실패 등) 스팟 여부로 김프를 막지 않는다.
+    """
+    loaded = any(
+        (
+            bool(_BINANCE_SPOT_USDT_BASES),
+            bool(_BYBIT_SPOT_USDT_BASES),
+            bool(_OKX_SPOT_USDT_BASES),
+            bool(_GATE_SPOT_USDT_BASES),
+            bool(_BITGET_SPOT_USDT_BASES),
+        )
+    )
+    if not loaded:
+        return True
+    return (
+        base in _BINANCE_SPOT_USDT_BASES
+        or base in _BYBIT_SPOT_USDT_BASES
+        or base in _OKX_SPOT_USDT_BASES
+        or base in _GATE_SPOT_USDT_BASES
+        or base in _BITGET_SPOT_USDT_BASES
+    )
+
+
 def _calc_kimchi_premium(
     krw_price: float,
-    binance_prices: dict[str, float],
+    ref_prices: dict[str, float],
     usdt_krw: float,
     symbol: str,
 ) -> float | None:
-    """김프(%) = (국내_KRW / (바이낸스_USDT × USDT_KRW) - 1) × 100"""
+    """김프(%) = (국내_KRW / (USDT_기준가격 × USDT_KRW) - 1) × 100"""
     if usdt_krw <= 0 or krw_price <= 0:
         return None
     bn_sym = _SYMBOL_MAP.get(symbol, symbol)
-    if not _binance_spot_has_usdt(bn_sym):
+    if not _any_spot_has_usdt(bn_sym):
         return None
-    bn_price = binance_prices.get(bn_sym)
-    if bn_price is None or bn_price <= 0:
+    ref_price = ref_prices.get(bn_sym)
+    if ref_price is None or ref_price <= 0:
         return None
-    fair_krw = bn_price * usdt_krw
+    fair_krw = ref_price * usdt_krw
     return round((krw_price / fair_krw - 1) * 100, 4)
 
 
@@ -992,7 +1524,8 @@ def _merge_gaps(
     bithumb: dict[str, float],
     up_wallet: dict[str, dict[str, bool]] | None,
     bh_wallet: dict[str, dict[str, bool]] | None,
-    binance_prices: dict[str, float] | None = None,
+    ref_prices: dict[str, float] | None = None,
+    ref_sources: dict[str, str] | None = None,
     usdt_krw: float | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     common = sorted(set(upbit) & set(bithumb))
@@ -1053,12 +1586,14 @@ def _merge_gaps(
             if gt_ft:
                 row["gate_futures_symbol"] = gt_ft
 
-        if binance_prices and usdt_krw and usdt_krw > 0:
-            kp_u = _calc_kimchi_premium(pu, binance_prices, usdt_krw, sym)
-            kp_b = _calc_kimchi_premium(pb, binance_prices, usdt_krw, sym)
+        if ref_prices and usdt_krw and usdt_krw > 0:
+            kp_u = _calc_kimchi_premium(pu, ref_prices, usdt_krw, sym)
+            kp_b = _calc_kimchi_premium(pb, ref_prices, usdt_krw, sym)
             row["kp_upbit"] = kp_u
             row["kp_bithumb"] = kp_b
-            row["binance_usdt"] = binance_prices.get(bn_base)
+            row["ref_usdt"] = ref_prices.get(bn_base)
+            if ref_sources:
+                row["ref_usdt_source"] = ref_sources.get(bn_base)
         if up_wallet and sym in up_wallet:
             u = up_wallet[sym]
             row["upbit_wallet"] = {
@@ -1105,17 +1640,31 @@ async def _compute_gaps_payload() -> dict[str, Any]:
 
     usdt_krw: float | None = None
     binance_prices: dict[str, float] = {}
+    ref_prices: dict[str, float] = {}
+    ref_sources: dict[str, str] = {}
+    ref_stats: dict[str, int] = {}
 
     async with httpx.AsyncClient(headers={"Accept": "application/json"}) as client:
         up_p = asyncio.create_task(_fetch_upbit_krw_prices(client))
         bh_p = asyncio.create_task(_fetch_bithumb_krw_prices(client))
         up_w = asyncio.create_task(_fetch_upbit_wallet_safe(client))
         bh_w = asyncio.create_task(_fetch_bithumb_wallet_safe(client))
-        bn_p = asyncio.create_task(_fetch_binance_usdt_prices(client))
+        ref_p = asyncio.create_task(_fetch_reference_usdt_prices(client))
         usdt_task = asyncio.create_task(_fetch_usdt_krw_rate(client))
-        upbit, bithumb, (up_raw, up_err), (bh_raw, bh_err), binance_prices, usdt_krw = (
-            await asyncio.gather(up_p, bh_p, up_w, bh_w, bn_p, usdt_task)
-        )
+        (
+            upbit,
+            bithumb,
+            (up_raw, up_err),
+            (bh_raw, bh_err),
+            (ref_prices, ref_sources, ref_stats),
+            usdt_krw,
+        ) = await asyncio.gather(up_p, bh_p, up_w, bh_w, ref_p, usdt_task)
+
+        # 기존 메타 호환: ref_sources를 이용해 "바이낸스에서 채워진 심볼 수"만 별도로 계산
+        if ref_sources:
+            binance_prices = {k: v for k, v in ref_prices.items() if ref_sources.get(k) == "binance"}
+        else:
+            binance_prices = {}
 
         if up_err:
             wallet_meta["upbit_error"] = up_err
@@ -1140,7 +1689,7 @@ async def _compute_gaps_payload() -> dict[str, Any]:
             wallet_meta["mode"] = "on"
 
     rows, meta = _merge_gaps(
-        upbit, bithumb, up_wallet_map, bh_wallet_map, binance_prices, usdt_krw
+        upbit, bithumb, up_wallet_map, bh_wallet_map, ref_prices, ref_sources, usdt_krw
     )
 
     global _wl_task
@@ -1189,6 +1738,8 @@ async def _compute_gaps_payload() -> dict[str, Any]:
     meta["wallet"] = wallet_meta
     meta["usdt_krw"] = usdt_krw
     meta["binance_symbols"] = len(binance_prices) if binance_prices else 0
+    meta["ref_usdt_symbols"] = len(ref_prices) if ref_prices else 0
+    meta["ref_usdt_stats"] = ref_stats
     meta["binance_spot_registry"] = {
         "loaded": bool(_BINANCE_SPOT_USDT_BASES),
         "usdt_spot_bases": len(_BINANCE_SPOT_USDT_BASES),
@@ -1306,6 +1857,8 @@ async def limits_status() -> dict[str, Any]:
         "cached_count": len(_wl_cache),
         "cached_at_ms": int(_wl_ts * 1000) if _wl_ts else None,
         "loading": _wl_loading,
+        "last_error": _wl_last_error,
+        "stats": _wl_stats,
     }
 
 
