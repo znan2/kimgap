@@ -286,15 +286,128 @@
       font-size: 0.8rem;
     }
     .rate-bar {
+      padding: 1.2rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(62, 232, 200, 0.08) 0%, rgba(62, 232, 200, 0.02) 100%);
+    }
+    .rate-bar-header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
       gap: 0.75rem;
-      padding: 0.7rem 1.1rem;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.82rem;
-      color: var(--muted);
     }
-    .rate-bar strong { color: var(--accent); font-weight: 700; font-size: 0.95rem; }
+    .rate-bar-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .rate-bar-main {
+      font-family: "Syne", sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(62, 232, 200, 0.3);
+    }
+    .rate-bar-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-left: 0.5rem;
+      font-weight: 500;
+    }
+    .rate-bar-kp {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 8px;
+      background: rgba(62, 232, 200, 0.12);
+      border: 1px solid rgba(62, 232, 200, 0.3);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .rate-bar-exchanges {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.75rem;
+    }
+    .rate-bar-exchange {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 0.75rem;
+      transition: all 0.2s;
+    }
+    .rate-bar-exchange:hover {
+      background: rgba(0, 0, 0, 0.35);
+      border-color: rgba(62, 232, 200, 0.3);
+      transform: translateY(-1px);
+    }
+    .rate-bar-exchange-name {
+      font-size: 0.7rem;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      letter-spacing: 0.02em;
+    }
+    .rate-bar-exchange-stats {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+    }
+    .rate-bar-stat {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+    .rate-bar-stat-label {
+      color: var(--muted);
+      font-size: 0.68rem;
+    }
+    .rate-bar-stat-value {
+      color: var(--text);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    @media (max-width: 768px) {
+      .rate-bar-exchanges {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      }
+      .rate-bar-main {
+        font-size: 1.2rem;
+      }
+    }
+    .tab-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.14);
+    }
+    .tab-btn {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      padding: 0.42rem 0.85rem;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      border-color: rgba(62, 232, 200, 0.55);
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+    .tab-btn:hover { color: var(--text); }
     .btn-sm {
       padding: 0.3rem 0.6rem;
       border-radius: 8px;
@@ -661,6 +774,11 @@
 
     <div class="card">
       <div class="rate-bar" id="rate-bar">기준 환율 로드 중…</div>
+      <div class="tab-bar" role="tablist" aria-label="가격 비교 탭">
+        <button type="button" class="tab-btn active" data-tab="domestic" role="tab" aria-selected="true">업비트 × 빗썸</button>
+        <button type="button" class="tab-btn" data-tab="spot" role="tab" aria-selected="false">현물 가격 비교</button>
+        <button type="button" class="tab-btn" data-tab="futures" role="tab" aria-selected="false">선물 가격 비교</button>
+      </div>
       <div class="meta-row" id="meta"></div>
       <div id="table-wrap">
         <div class="loading">데이터 요청 중…</div>
@@ -686,7 +804,7 @@
     </div>
 
     <footer>
-      브라우저는 <code>WebSocket /ws/gaps</code>로 갱신 페이로드를 수신합니다(폴백 <code>GET /api/gaps</code>). 시세: 업비트 <code>/v1/market/all</code> · <code>/v1/ticker</code>, 빗썸 <code>/public/ticker/ALL_KRW</code>, 바이낸스 <code>/api/v3/ticker/price</code>. 입출금(선택): <code>/v1/status/wallet</code> + API 키. 갭% = (고가 − 저가) ÷ 저가 × 100. 김프(%) = (국내KRW / (바이낸스USDT × USDT/KRW) − 1) × 100. 위험도: 안전(0~1%), 주의(1~3%), 위험(3%↑), 역프(&lt;0%). 수수료·슬리피지·호가는 미반영입니다.
+      브라우저는 <code>WebSocket /ws/gaps</code>로 갱신 페이로드를 수신합니다(폴백 <code>GET /api/gaps</code>). 시세: 업비트 <code>/v1/market/all</code> · <code>/v1/ticker</code>, 빗썸 <code>/public/ticker/ALL_KRW</code>, Binance/Bybit/Bitget/Gate.io public WebSocket. 입출금(선택): <code>/v1/status/wallet</code> + API 키. 국내 탭 갭% = (고가 − 저가) ÷ 저가 × 100. 해외 비교 탭은 국내KRW ÷ 업비트 KRW-USDT로 USDT 환산 후 해외거래소 USDT 가격과 비교합니다. 수수료·슬리피지·호가는 미반영입니다.
     </footer>
   </div>
 
@@ -719,8 +837,10 @@
     const coinModalBody = document.getElementById("coin-modal-body");
     const coinModalBackdrop = document.getElementById("coin-modal-backdrop");
     const coinModalClose = document.getElementById("coin-modal-close");
+    const tabButtons = Array.from(document.querySelectorAll(".tab-btn[data-tab]"));
 
     let lastPayload = null;
+    let activeTab = "domestic";
 
     function setConnBadge(mode, text) {
       connStatusEl.textContent = text;
@@ -730,6 +850,13 @@
 
     function formatKRW(n) {
       return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: n < 100 ? 4 : 2 }).format(n);
+    }
+
+    function formatUSDT(n) {
+      if (n == null || !Number.isFinite(Number(n))) return "—";
+      const v = Number(n);
+      const digits = v >= 100 ? 4 : v >= 1 ? 6 : 8;
+      return v.toLocaleString("ko-KR", { maximumFractionDigits: digits });
     }
 
     function formatTime(ms) {
@@ -772,7 +899,27 @@
       if (r) return r;
       r = (lastPayload.wallet_restricted || []).find((x) => x.symbol === sym);
       if (r) return r;
-      return (lastPayload.wallet_fully_blocked || []).find((x) => x.symbol === sym) || null;
+      r = (lastPayload.wallet_fully_blocked || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.spot_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.futures_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.binance_spot_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.binance_futures_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.bybit_spot_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.bybit_futures_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.bitget_spot_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.bitget_futures_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.gate_spot_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      return (lastPayload.gate_futures_comparisons || []).find((x) => x.symbol === sym) || null;
     }
 
     function networkTableHtml(nets) {
@@ -998,6 +1145,25 @@
 
     function sortRows(rows) {
       const key = sortByEl.value;
+      if (activeTab !== "domestic") {
+        return [...rows].sort((a, b) => {
+          if (key === "kp_upbit" || key === "rp_upbit") {
+            const av = kpNum(a.upbit_gap_pct);
+            const bv = kpNum(b.upbit_gap_pct);
+            const aOrd = av == null ? (key === "rp_upbit" ? Infinity : -999) : av;
+            const bOrd = bv == null ? (key === "rp_upbit" ? Infinity : -999) : bv;
+            return key === "rp_upbit" ? aOrd - bOrd : bOrd - aOrd;
+          }
+          if (key === "kp_bithumb" || key === "rp_bithumb") {
+            const av = kpNum(a.bithumb_gap_pct);
+            const bv = kpNum(b.bithumb_gap_pct);
+            const aOrd = av == null ? (key === "rp_bithumb" ? Infinity : -999) : av;
+            const bOrd = bv == null ? (key === "rp_bithumb" ? Infinity : -999) : bv;
+            return key === "rp_bithumb" ? aOrd - bOrd : bOrd - aOrd;
+          }
+          return (b.max_abs_gap_pct ?? -1) - (a.max_abs_gap_pct ?? -1);
+        });
+      }
       return [...rows].sort((a, b) => {
         if (key === "kp_upbit" || key === "kp_bithumb") {
           const av = kpNum(a[key]) ?? -999;
@@ -1121,6 +1287,59 @@
       tableWrap.innerHTML = head + body + "</tbody></table>";
       if (filtered.length > 200) {
         tableWrap.innerHTML += `<p class="loading">상위 200개만 표시 (표시 대상 ${filtered.length}개)</p>`;
+      }
+    }
+
+    function renderExchangeComparisonTable(rows, marketLabel) {
+      const q = tickerSearchQuery();
+      let filtered = sortRows(rows || []);
+      if (!filtered.length) {
+        const msg = q
+          ? `종목 검색 “${escHtml(q)}”에 일치하는 ${marketLabel} 비교 항목이 없습니다.`
+          : `비교 가능한 ${marketLabel} 종목이 없습니다.`;
+        tableWrap.innerHTML = `<div class="empty">${msg}</div>`;
+        return;
+      }
+      const head = `
+        <table class="main-gaps-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th class="col-mid">종목</th>
+              <th class="col-mid">거래소</th>
+              <th class="col-mid">심볼</th>
+              <th class="col-mid">최대 괴리</th>
+              <th class="col-mid">업비트 괴리</th>
+              <th class="col-mid">빗썸 괴리</th>
+              <th>업비트(USDT)</th>
+              <th>빗썸(USDT)</th>
+              <th>해외(USDT)</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      const body = filtered.slice(0, 220).map((r, i) => {
+        const symbol = r.exchange_symbol || r.binance_spot_symbol || r.binance_futures_symbol || r.bybit_spot_symbol || r.bybit_futures_symbol || r.bitget_spot_symbol || r.bitget_futures_symbol || r.gate_spot_symbol || r.gate_futures_symbol || `${r.mapped_symbol || r.symbol}USDT`;
+        const upRisk = riskBadge(r.upbit_gap_pct);
+        const bhRisk = riskBadge(r.bithumb_gap_pct);
+        return `
+          <tr class="coin-row" data-symbol="${r.symbol}">
+            <td>${i + 1}</td>
+            <td class="sym-cell col-mid"><span class="sym-text">${r.symbol}</span></td>
+            <td class="col-mid">${escHtml(r.exchange_label || r.exchange || "—")}</td>
+            <td class="col-mid">${escHtml(symbol)}</td>
+            <td class="gap col-mid">${r.max_abs_gap_pct == null ? "—" : r.max_abs_gap_pct.toFixed(2) + "%"}</td>
+            <td class="col-mid">${formatKP(r.upbit_gap_pct)}${upRisk}</td>
+            <td class="col-mid">${formatKP(r.bithumb_gap_pct)}${bhRisk}</td>
+            <td style="color:var(--upbit)">${formatUSDT(r.upbit_usdt)}</td>
+            <td style="color:var(--bithumb)">${formatUSDT(r.bithumb_usdt)}</td>
+            <td>${formatUSDT(r.reference_usdt ?? r.binance_usdt)}</td>
+          </tr>
+        `;
+      }).join("");
+      tableWrap.innerHTML = head + body + "</tbody></table>";
+      if (filtered.length > 220) {
+        tableWrap.innerHTML += `<p class="loading">상위 220개만 표시 (표시 대상 ${filtered.length}개)</p>`;
       }
     }
 
@@ -1255,7 +1474,19 @@
 
     function refreshViews() {
       if (!lastPayload) return;
-      renderTable(filterRowsByTicker(lastPayload.gaps || []));
+      if (activeTab === "spot") {
+        renderExchangeComparisonTable(
+          filterRowsByTicker(lastPayload.spot_comparisons || lastPayload.binance_spot_comparisons || []),
+          "현물"
+        );
+      } else if (activeTab === "futures") {
+        renderExchangeComparisonTable(
+          filterRowsByTicker(lastPayload.futures_comparisons || lastPayload.binance_futures_comparisons || []),
+          "선물"
+        );
+      } else {
+        renderTable(filterRowsByTicker(lastPayload.gaps || []));
+      }
       renderRestrictedSection(filterRowsByTicker(lastPayload.wallet_restricted || []));
       renderBlockedSection(filterRowsByTicker(lastPayload.wallet_fully_blocked || []));
     }
@@ -1309,12 +1540,94 @@
         wlSpan = `<span style="color:var(--warn)"> · 한도 오류${wp ? " " + escHtml(wp) : ""}</span>`;
       }
       if (usdtKrw) {
-        rateBar.innerHTML = `기준 환율: <strong>1 USDT = ₩${formatKRW(usdtKrw)}</strong> (업비트 KRW-USDT) · 바이낸스 심볼 <strong>${m.binance_symbols ?? "—"}</strong>개 · 김프 계산 가능 <strong>${kpAvail}</strong>개`;
+        rateBar.innerHTML = `
+          <div class="rate-bar-header">
+            <div>
+              <div class="rate-bar-title">기준 환율 (업비트 KRW-USDT)</div>
+              <div class="rate-bar-main">
+                1 USDT = ₩${formatKRW(usdtKrw)}
+              </div>
+            </div>
+            <div class="rate-bar-kp">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              김프 계산 가능 <strong>${kpAvail}</strong>개
+            </div>
+          </div>
+          <div class="rate-bar-exchanges">
+            <div class="rate-bar-exchange">
+              <div class="rate-bar-exchange-name">Binance</div>
+              <div class="rate-bar-exchange-stats">
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">현물</span>
+                  <span class="rate-bar-stat-value">${m.binance_spot_price_symbols ?? "—"}</span>
+                </div>
+                <span style="color:var(--border)">/</span>
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">선물</span>
+                  <span class="rate-bar-stat-value">${m.binance_futures_price_symbols ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+            <div class="rate-bar-exchange">
+              <div class="rate-bar-exchange-name">Bybit</div>
+              <div class="rate-bar-exchange-stats">
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">현물</span>
+                  <span class="rate-bar-stat-value">${m.bybit_spot_price_symbols ?? "—"}</span>
+                </div>
+                <span style="color:var(--border)">/</span>
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">선물</span>
+                  <span class="rate-bar-stat-value">${m.bybit_futures_price_symbols ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+            <div class="rate-bar-exchange">
+              <div class="rate-bar-exchange-name">Bitget</div>
+              <div class="rate-bar-exchange-stats">
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">현물</span>
+                  <span class="rate-bar-stat-value">${m.bitget_spot_price_symbols ?? "—"}</span>
+                </div>
+                <span style="color:var(--border)">/</span>
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">선물</span>
+                  <span class="rate-bar-stat-value">${m.bitget_futures_price_symbols ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+            <div class="rate-bar-exchange">
+              <div class="rate-bar-exchange-name">Gate.io</div>
+              <div class="rate-bar-exchange-stats">
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">현물</span>
+                  <span class="rate-bar-stat-value">${m.gate_spot_price_symbols ?? "—"}</span>
+                </div>
+                <span style="color:var(--border)">/</span>
+                <div class="rate-bar-stat">
+                  <span class="rate-bar-stat-label">선물</span>
+                  <span class="rate-bar-stat-value">${m.gate_futures_price_symbols ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
       } else {
-        rateBar.innerHTML = `기준 환율: <span style="color:var(--warn)">USDT/KRW 조회 실패</span>`;
+        rateBar.innerHTML = `
+          <div class="rate-bar-header">
+            <div>
+              <div class="rate-bar-title">기준 환율</div>
+              <div class="rate-bar-main" style="color:var(--warn);">USDT/KRW 조회 실패</div>
+            </div>
+          </div>
+        `;
       }
       metaEl.innerHTML = `
           <span>비교 종목 <strong>${m.pairs_compared ?? "—"}</strong></span>
+          <span>해외 현물 <strong>${m.spot_compared ?? m.binance_spot_compared ?? "—"}</strong></span>
+          <span>해외 선물 <strong>${m.futures_compared ?? m.binance_futures_compared ?? "—"}</strong></span>
           <span>업비트만 <strong>${m.upbit_only ?? "—"}</strong></span>
           <span>빗썸만 <strong>${m.bithumb_only ?? "—"}</strong></span>
           ${wl ? `<span title="${errTitle}"><strong>${wl}</strong></span>` : ""}
@@ -1408,6 +1721,17 @@
     sortByEl.addEventListener("change", () => refreshViews());
     tickerSearchEl.addEventListener("input", () => refreshViews());
     tickerSearchEl.addEventListener("search", () => refreshViews());
+    tabButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeTab = btn.dataset.tab || "domestic";
+        tabButtons.forEach((b) => {
+          const isActive = b === btn;
+          b.classList.toggle("active", isActive);
+          b.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+        refreshViews();
+      });
+    });
 
     document.querySelector(".wrap").addEventListener("click", (e) => {
       const row = e.target.closest("tr.coin-row");
