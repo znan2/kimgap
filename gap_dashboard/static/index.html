@@ -1145,8 +1145,9 @@
 
     function sortRows(rows) {
       const key = sortByEl.value;
+      console.log(`[sortRows] 입력 길이: ${rows.length}, activeTab: ${activeTab}, sortKey: ${key}`);
       if (activeTab !== "domestic") {
-        return [...rows].sort((a, b) => {
+        const sorted = [...rows].sort((a, b) => {
           if (key === "kp_upbit" || key === "rp_upbit") {
             const av = kpNum(a.upbit_gap_pct);
             const bv = kpNum(b.upbit_gap_pct);
@@ -1163,8 +1164,10 @@
           }
           return (b.max_abs_gap_pct ?? -1) - (a.max_abs_gap_pct ?? -1);
         });
+        console.log(`[sortRows] 정렬 후 길이: ${sorted.length}`);
+        return sorted;
       }
-      return [...rows].sort((a, b) => {
+      const sorted = [...rows].sort((a, b) => {
         if (key === "kp_upbit" || key === "kp_bithumb") {
           const av = kpNum(a[key]) ?? -999;
           const bv = kpNum(b[key]) ?? -999;
@@ -1180,6 +1183,8 @@
         }
         return b.gap_pct - a.gap_pct;
       });
+      console.log(`[sortRows] 정렬 후 길이 (domestic): ${sorted.length}`);
+      return sorted;
     }
 
     function tickerSearchQuery() {
@@ -1292,10 +1297,14 @@
 
     function renderExchangeComparisonTable(rows, marketLabel) {
       const q = tickerSearchQuery();
+      console.log(`[${marketLabel}] 입력 rows 길이:`, rows?.length || 0);
+      console.log(`[${marketLabel}] activeTab:`, activeTab);
+      console.log(`[${marketLabel}] sortByEl.value:`, sortByEl?.value);
       let filtered = sortRows(rows || []);
+      console.log(`[${marketLabel}] sortRows 후 길이:`, filtered?.length || 0);
       if (!filtered.length) {
         const msg = q
-          ? `종목 검색 “${escHtml(q)}”에 일치하는 ${marketLabel} 비교 항목이 없습니다.`
+          ? `종목 검색 "${escHtml(q)}"에 일치하는 ${marketLabel} 비교 항목이 없습니다.`
           : `비교 가능한 ${marketLabel} 종목이 없습니다.`;
         tableWrap.innerHTML = `<div class="empty">${msg}</div>`;
         return;
@@ -1318,6 +1327,7 @@
           </thead>
           <tbody>
       `;
+      console.log(`[${marketLabel}] 테이블 생성 시작, 표시할 행: ${Math.min(filtered.length, 220)}개`);
       const body = filtered.slice(0, 220).map((r, i) => {
         const symbol = r.exchange_symbol || r.binance_spot_symbol || r.binance_futures_symbol || r.bybit_spot_symbol || r.bybit_futures_symbol || r.bitget_spot_symbol || r.bitget_futures_symbol || r.gate_spot_symbol || r.gate_futures_symbol || `${r.mapped_symbol || r.symbol}USDT`;
         const upRisk = riskBadge(r.upbit_gap_pct);
@@ -1337,10 +1347,17 @@
           </tr>
         `;
       }).join("");
-      tableWrap.innerHTML = head + body + "</tbody></table>";
+      console.log(`[${marketLabel}] 테이블 body HTML 길이: ${body.length} 문자`);
+      const fullTable = head + body + "</tbody></table>";
+      console.log(`[${marketLabel}] 전체 테이블 HTML 길이: ${fullTable.length} 문자`);
+      tableWrap.innerHTML = fullTable;
+      console.log(`[${marketLabel}] tableWrap.innerHTML 설정 완료`);
       if (filtered.length > 220) {
         tableWrap.innerHTML += `<p class="loading">상위 220개만 표시 (표시 대상 ${filtered.length}개)</p>`;
       }
+      console.log(`[${marketLabel}] 렌더링 완료!`);
+      console.log(`[${marketLabel}] tableWrap의 현재 자식 노드 수: ${tableWrap.children.length}`);
+      console.log(`[${marketLabel}] tableWrap의 첫 번째 자식: ${tableWrap.children[0]?.tagName || 'none'}`);
     }
 
     function renderBlockedSection(list) {
@@ -1721,15 +1738,23 @@
     sortByEl.addEventListener("change", () => refreshViews());
     tickerSearchEl.addEventListener("input", () => refreshViews());
     tickerSearchEl.addEventListener("search", () => refreshViews());
+    console.log('[INIT] tabButtons 개수:', tabButtons.length);
+    tabButtons.forEach((btn, idx) => {
+      console.log(`[INIT] Tab ${idx}:`, btn.dataset.tab);
+    });
     tabButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
+        console.log('[TAB CLICK] 클릭된 탭:', btn.dataset.tab);
         activeTab = btn.dataset.tab || "domestic";
+        console.log('[TAB CLICK] activeTab 변경됨:', activeTab);
         tabButtons.forEach((b) => {
           const isActive = b === btn;
           b.classList.toggle("active", isActive);
           b.setAttribute("aria-selected", isActive ? "true" : "false");
         });
+        console.log('[TAB CLICK] refreshViews() 호출 직전');
         refreshViews();
+        console.log('[TAB CLICK] refreshViews() 호출 완료');
       });
     });
 
