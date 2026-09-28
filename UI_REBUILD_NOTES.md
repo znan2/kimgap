@@ -1,7 +1,83 @@
-# UI 리빌드 노트 (ui-rebuild 브랜치)
+# UI 리빌드 노트 (ui-rebuild → static-demo)
 
 기준 문서: `~/portfolio/DESIGN.md` (다크 핀테크 대시보드, 한국식 상승·하락 색, 브랜드 강조색 **민트 `#3ce8a0` 확정**)
 작업일: 2026-09-28
+
+---
+
+## 정적 데모 (static-demo 브랜치)
+
+### 빌드 방법
+
+```bash
+python3 scripts/build_demo.py                   # dist/ 생성 (표준 라이브러리만 사용, 재실행 시 결과 동일)
+python3 -m http.server 8080 --directory dist    # http://127.0.0.1:8080/
+```
+
+`dist/` 구성(10개 파일, 약 273 KiB):
+
+- `index.html`: `kimgap-mode=demo` + CSP `<meta>`
+- `static/mock-data.js`, 거래소 로고 4개
+- `static/fonts/`: subset 폰트, OFL, README
+- `_headers`
+
+`dist/`는 `.gitignore`에 추가했다.
+
+### 변경 요약
+
+| 파일 | 내용 |
+|---|---|
+| `gap_dashboard/static/index.html` | `<meta name="kimgap-mode" content="live">` 설정으로 운영과 데모를 구분(운영 코드 삭제 없음). 자산 경로를 상대 경로(`static/…`)로, 폰트를 self-host subset으로 바꿈. 데모 모드는 3초 타이머로 갱신하고 "데모 데이터로 동작 중" 표시, 하단 안내 문구, 출금한도 버튼 비활성화 |
+| `gap_dashboard/static/mock-data.js` | 출금 한도 필드와 금액 제거. 무작위 행보 대신 **평균 회귀 노이즈**(시장 공통 + 거래소별)로 바꿔 오래 켜 두어도 값이 자연스럽게 기준 근처에서 움직임. `/api/*` 가로채기는 금액 없는 상태 응답만 반환 |
+| `scripts/build_demo.py` (신규) | 빌드 스크립트. 인라인 `<script>`·`<style>`의 SHA-256 해시로 CSP를 만들어 `dist/_headers`와 `<meta>`에 넣음 |
+| `scripts/subset_font.py` (신규) | Pretendard에서 UI가 쓰는 글자(수집 472자 중 폰트에 있는 471자)만 남긴 subset 생성(개발자용, 빌드에는 불필요) |
+| `gap_dashboard/static/fonts/` (신규) | `KimgapSans-Variable.subset.woff2`(103 KiB), `OFL.txt`, `README.md` |
+| `README.md` (신규) | 맨 위에 데모 실행·빌드, 실행 모드 표, 실데이터 실행, `data/*.json` 필요 여부 |
+| `.gitignore` | `dist/` 추가 |
+
+### 결정과 이유
+
+| # | 결정 | 이유 |
+|---|---|---|
+| D1 | 모드는 `<meta name="kimgap-mode">`로 정하고, 빌드 스크립트가 `live`를 `demo`로 바꾼다. 운영 페이지의 `?mock=1`은 유지한다 | 소스 파일 하나로 두 모드를 유지하고, 운영 코드(`connectWs` 등)는 그대로 둔다. 쿼리로 데모를 켜는 방식과 달리 빌드 결과물은 사용자가 운영 모드로 바꿀 수 없다 |
+| D2 | 데모는 목업 스크립트 로드에 실패해도 WebSocket으로 넘어가지 않고 오류만 표시한다 | "데모는 서버를 호출하지 않는다"는 보장을 실패 경로에서도 지킨다 |
+| D3 | 빌드 도구는 파이썬 표준 라이브러리 스크립트 하나로 만들었다(npm, 번들러 도입 없음) | 저장소가 파이썬 프로젝트이고 프론트엔드는 번들 없는 단일 HTML이다. 명령 하나(`python3 scripts/build_demo.py`)로 끝난다 |
+| D4 | CSP는 `'unsafe-inline'` 없이 인라인 스크립트·스타일의 **해시**로 허용한다. `default-src 'none'`에 필요한 것만 `'self'`로 연다 | 요구사항은 `connect-src 'self'`이지만, 해시 방식이면 같은 비용으로 XSS 방어까지 강해진다. 인라인 `style=` 속성과 이벤트 핸들러 속성이 없는 것도 확인했다 |
+| D5 | 같은 CSP를 `<meta>`로도 넣는다(`frame-ancestors`만 헤더 전용) | `_headers`는 Netlify·Cloudflare Pages에서만 적용된다. GitHub Pages나 `http.server`에서도 `connect-src 'self'`가 걸리게 한다 |
+| D6 | Pretendard CDN을 없애고 **subset 폰트를 self-host**했다. 운영 모드도 같은 폰트를 쓴다 | "같은 출처가 아닌 요청 0건" 요구를 만족하려면 외부 폰트를 쓸 수 없다. 전체 패키지(3MB, 92개 파일) 대신 실제 쓰는 471자만 남겨 103 KiB로 줄였다 |
+| D7 | subset 폰트 이름을 **Kimgap Sans**로 바꿨다(저작권·상표·디자이너 표기는 유지) | Pretendard는 OFL 1.1에 "Pretendard"가 Reserved Font Name이고, subset은 수정본이다. 보수적으로 해석해 이름을 바꾸고 `OFL.txt`를 함께 배포한다 |
+| D8 | 데모와 목업에서 출금 한도는 필드 자체를 없애고, 버튼은 "출금한도 · 데모 제외"로 비활성화했다. 모달에는 "데모 데이터에는 출금 한도를 넣지 않았다"는 안내를 표시한다 | 요구사항(출금 한도 금액 금지). 가짜 숫자를 보여주는 것보다 빈칸과 이유를 보여주는 편이 오해가 적다 |
+| D9 | 데모는 3초, `?mock=1`은 5초(운영 기본값과 같음) 간격으로 갱신한다 | 데모는 "살아 있는" 느낌을 주려고 조금 빠르게 했다. 운영 페이지 목업은 실제 주기와 맞췄다 |
+| D10 | 상대 경로로 바꿔 서브경로(예: GitHub Pages `/kimgap/`)에서도 동작하게 했다. 목업의 `/api/*` 가로채기도 경로 끝 기준으로 맞춘다 | 운영 FastAPI(`/` → `/static/…`)에서도 같은 상대 경로가 그대로 풀린다. 대신 운영에서 `/static/index.html`로 직접 열면 자산이 404가 되므로 진입점은 `/`로 고정한다(README에 명시) |
+| D11 | 빌드 스크립트는 CSP `<meta>` 삽입 위치를 못 찾거나, 해시할 수 없는 인라인 코드(속성 달린 script·style, `on*=`, `style=`)가 있으면 **실패**한다 | 리뷰 지적 반영. CSP가 빠진 채 빌드되거나, 데모가 CSP에 막혀 조용히 깨지는 것을 막는다 |
+| D12 | 데모에서는 푸터의 "WebSocket /ws/gaps로 수신" 문장을 숨긴다 | 데모 안내와 서로 어긋나 보이지 않게 한다 |
+
+### 검증 결과
+
+| 검사 | 명령 | 결과 |
+|---|---|---|
+| **30초 네트워크 관찰** (1440, Playwright Chromium) | `node demo_check.mjs http://127.0.0.1:8766/` (`dist/`를 `_headers` 적용 정적 서버로 서빙) | ✅ **같은 출처가 아닌 요청 0건**, WebSocket 0건, `/api`·`/ws` 요청 0건, CSP 위반 0건, 콘솔·페이지 오류 0건. 30초 동안 전체 요청은 6건(`/`, `mock-data.js`, 폰트, 로고 3개) |
+| 응답 헤더 CSP | 위 스크립트 | ✅ `connect-src 'self'` 포함, `default-src 'none'`, 해시 기반 script·style |
+| 실시간 갱신 흉내 | 3초 간격 11회 샘플 | ✅ BTC 업비트 가격 11가지, BTC 김프 10가지, 환율 7가지 값. 갱신 시각 매번 바뀜 |
+| 데모 표시와 출금 한도 | 위 스크립트 | ✅ 배지 "데모 데이터로 동작 중", 하단 안내 표시, 390px에서 배지 잘림 없음, 버튼 비활성, 모달의 한도 값은 모두 "—" |
+| 운영 모드 회귀 | FastAPI 배치(`/`+`/static`)를 흉내 낸 정적 서버 | ✅ `live`에서는 `ws://…/ws/gaps` 연결을 시도하고 목업을 로드하지 않음(백엔드가 없어 "재연결 중…"이 정상). `?mock=1`은 데모 데이터로 동작. 두 경우 모두 외부 요청은 0건(폰트도 self-host) |
+| 빌드 재현성 | 두 번 빌드 후 모든 파일 SHA 비교 | ✅ 동일 |
+| 빌드 안전장치(음성 테스트) | 임시 사본에 문제를 넣고 빌드 | ✅ charset 표기 변경, `onclick=`, `style=`, `<script type="module">` 4건 모두 빌드가 오류로 멈춤 |
+| 코드 리뷰(서브에이전트, 읽기 전용) | `git diff main` + 신규 파일 | High·Medium 0건. Low 3·Nit 3건은 모두 반영(D10~D12, 문서 수정). 리뷰어가 따로 헤드리스 Chrome을 돌렸을 때도 외부·백엔드 요청 0건, CSP 해시 일치, 2,000틱 동안 김프 이탈 최대 0.5%p |
+| JS 구문 | `node --check` (인라인, `mock-data.js`) | ✅ |
+| HTML | `html-validate` (소스와 `dist/index.html`, `void-style: selfclose`) | ✅ |
+| 파이썬 | `pyflakes scripts/`, `py_compile` | ✅ |
+| ESLint | `eslint inline.js mock-data.js` | ❌ 오류 1·경고 2. 기존 운영 WebSocket 코드(`disconnectWs`의 `catch (_) {}`)에서 나오며, 이번 작업 범위 밖이라 그대로 두었다(아래 남은 이슈 1) |
+
+**스크린샷(다시 저장):** `~/portfolio/assets/kimgap/`에 아래 "스크린샷 목록"과 같은 9개 파일을 **정적 데모 빌드(`dist/`)** 로 다시 찍었다(1440 × 5, 390 × 4, reduced-motion).
+
+위 결과는 리뷰 반영 뒤의 최종 빌드로 다시 실행한 값이다. Playwright 검증 스크립트(`demo_check.mjs`)와 `_headers`를 적용하는 검증용 정적 서버는 작업용 임시 폴더에서 실행했고 저장소에는 넣지 않았다(Node·Playwright 의존성을 저장소에 들이지 않기 위해).
+
+### 정적 데모에서 남은 이슈
+
+- subset 폰트에 없는 글자(나중에 추가될 UI 문구, 서버가 보내는 새 한글 메시지)는 시스템 폰트로 표시된다. 문구를 바꾸면 `scripts/subset_font.py`를 다시 실행해야 한다.
+- `_headers`는 Netlify·Cloudflare Pages 전용 형식이다. 다른 호스팅에서는 `<meta>` CSP만 적용되고, 이 경우 `frame-ancestors`(클릭재킹 방어)는 빠진다.
+- 데모의 가격은 정해진 기준값 근처에서만 움직인다. 실제 시장 흐름(추세, 급등락)은 흉내 내지 않는다.
 
 ---
 
@@ -12,7 +88,7 @@
 | 파일 | 내용 |
 |---|---|
 | `gap_dashboard/static/index.html` | DESIGN.md 토큰(표면·텍스트·상승/하락·민트 강조·간격·반경)으로 전면 재작성. 앱 바, KPI 스트립, 해외 시세 수신 칩, 세그먼트 탭과 도구 줄, 고정 헤더 표, 제한·중단 2열 카드, 코인 상세 모달(모바일은 바텀시트)로 구성. 목업 모드(`?mock=1`) 부트스트랩 추가 |
-| `gap_dashboard/static/mock-data.js` (신규) | 목업 모드 전용. `/ws/gaps` 페이로드와 같은 모양의 가상 데이터를 브라우저 안에서 생성하고, 5초마다 가격을 흔들어 갱신. 목업 모드에서만 `/api/*` fetch를 가로채 가상 응답 반환 |
+| `gap_dashboard/static/mock-data.js` (신규) | 목업 모드 전용. `/ws/gaps` 페이로드와 같은 모양의 가상 데이터를 브라우저 안에서 생성하고, 주기적으로 가격을 흔들어 갱신. 목업 모드에서만 `/api/*` fetch를 가로채 가상 응답 반환 (static-demo에서 평균 회귀 변동, 출금 한도 제거로 변경됨) |
 | `UI_REBUILD_NOTES.md` (신규) | 이 문서 |
 | `~/portfolio/DESIGN.md` (저장소 밖) | §2.4 민트 확정과 강조 토큰(`--accent`, `--accent-hover`, `--on-accent`, `--accent-bg`, `--focus-ring`) 추가, §2.5 `--series-1`을 민트로 교체, §5.7 Primary 버튼, §7 대비 검증, §8 체크리스트 갱신 |
 
@@ -40,7 +116,7 @@
 2. **실데이터 모드는 화면으로 확인하지 못했다.** 규칙상 백엔드를 띄우지 않았으므로 실제 페이로드(300개 이상 행, `wallet.mode = off/failed`, `usdt_krw = null`)로 렌더링된 모습은 보지 않았다. 목업 스키마는 `main.py`의 `_compute_gaps_payload()`를 읽고 맞췄다. 일반 모드가 기존대로 `ws://…/ws/gaps`에 연결을 시도하고 목업 스크립트를 로드하지 않는 것만 확인했다.
 3. **저장소에 기존 테스트·린트 설정·빌드 스크립트가 없다.** 아래 검증은 스크래치패드에 임시로 설치한 도구로 실행했다. 저장소에 lint/test 설정은 추가하지 않았다.
 4. `index.html`의 커밋에는 작업 전부터 있던 **사용자의 미커밋 UI 변경**(제목을 "차익 대시보드"로 변경, 디버그 `console.log` 제거)이 함께 들어갔다. 파일을 통째로 다시 썼기 때문에 분리할 수 없었고, 두 변경 모두 새 UI에 유지했다.
-5. Pretendard 폰트를 `cdn.jsdelivr.net`에서 불러온다. 오프라인이면 시스템 산세리프(Apple SD Gothic Neo 등)로 대체된다.
+5. ~~Pretendard 폰트를 `cdn.jsdelivr.net`에서 불러온다.~~ → static-demo에서 해소: 저장소 안의 subset 폰트(`Kimgap Sans`)를 쓰고 CDN 요청은 없다.
 6. Binance 로고 파일이 저장소에 없어 머리글자 모노그램("B")으로 표시한다(원본도 로고 없이 점으로 표시했다).
 7. 1180px 이하 태블릿 폭에서는 KPI가 3+2 배치라 둘째 줄 오른쪽 한 칸이 빈다. 390·1440 요구 범위 밖이라 그대로 두었다.
 8. `.claude/launch.json`(목업 정적 서버 실행 설정)을 만들었지만 앱 코드가 아니라서 커밋하지 않았다. 필요 없으면 지워도 된다.
@@ -57,12 +133,12 @@
 python3 -m http.server 8765 --bind 127.0.0.1 --directory gap_dashboard
 ```
 
-브라우저에서 `http://127.0.0.1:8765/static/index.html?mock=1`을 연다. FastAPI 서버에서도 `/?mock=1`로 같은 모드를 쓸 수 있다.
+> **static-demo 이후 변경:** 자산 경로가 상대 경로(`static/…`)로 바뀌어 위 방식(`/static/index.html?mock=1`)으로는 더 이상 열리지 않는다. 대신 `python3 scripts/build_demo.py`로 `dist/`를 만들어 띄우거나, FastAPI 서버에서 `/?mock=1`을 연다(`/static/index.html?mock=1`은 상대 경로가 `/static/static/…`으로 풀려 동작하지 않는다). 문서 맨 위 "정적 데모" 절 참고.
 
-- 목업 데이터는 모두 가상의 값이다. 가격, 김프, 출금 한도(일 5억 원 상당으로 고정한 가짜 값)는 실제 시세나 계정 정보가 아니며, 지갑 주소나 잔고는 들어 있지 않다.
+- 목업 데이터는 모두 가상의 값이다. 가격과 김프는 실제 시세가 아니며, 지갑 주소나 잔고는 들어 있지 않다. (처음에는 가짜 출금 한도 값이 있었으나 static-demo에서 **출금 한도 필드를 완전히 제거**했다.)
 - 시나리오를 넣어 두었다: ORCA(업비트 출금 불가, 빗썸 입금 불가), SAND·MED(빗썸 전 네트워크 중단), STRAX(업비트 전 네트워크 중단), SEI(빗썸 출금 불가), MOVE(업비트 입금 불가), ZRO(네트워크 일부만 중단, 집계로는 가능), BORA(빗썸 지갑 정보 없음), KAIA·MED·MLK·BORA(해외 미상장이라 김프 없음), BTT(해외 심볼 BTTC 매핑).
-- "출금한도 새로고침"을 누르면 목업 fetch가 `loading → done`을 3틱(약 15초) 동안 흉내 낸다.
-- 앱 바의 연결 상태에 앰버색 "목업 데이터" 표시가 떠서 실데이터와 구분된다.
+- (static-demo 이후) 목업·데모에서는 "출금한도" 버튼이 "출금한도 · 데모 제외"로 비활성화된다.
+- 앱 바의 연결 상태에 앰버색 "데모 데이터로 동작 중" 표시가 떠서 실데이터와 구분된다(처음 표기는 "목업 데이터").
 
 ---
 
@@ -88,7 +164,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory gap_dashboard
 | 16 | 표 행에 `tabindex="0"`과 Enter/Space 열기를 추가했고, 모달을 닫으면 포커스가 원래 자리로 돌아간다 | 키보드 접근성. 원본은 마우스 클릭으로만 열 수 있었다 |
 | 17 | 가격 셀이 바뀌면 400ms 동안 `--up-bg`/`--down-bg`로 깜빡인다. `prefers-reduced-motion`이면 끈다 | DESIGN.md §6 |
 | 18 | `escHtml`이 따옴표(`"`)도 이스케이프하게 했고, `data-symbol` 등 속성에 넣는 심볼도 이스케이프한다 | 원본은 `data-symbol="${r.symbol}"`에 이스케이프 없이 넣었다. UI 렌더링 방어 강화이며 데이터 흐름은 바뀌지 않는다 |
-| 19 | 폰트를 DM Sans와 Syne(Google Fonts)에서 Pretendard Variable(jsDelivr)로 바꿨다 | DESIGN.md §3.1 한글 UI 권장 서체. 모든 숫자에 `tabular-nums`를 적용했다 |
+| 19 | 폰트를 DM Sans와 Syne(Google Fonts)에서 Pretendard Variable(jsDelivr)로 바꿨다 (static-demo에서 self-host subset으로 다시 변경) | DESIGN.md §3.1 한글 UI 권장 서체. 모든 숫자에 `tabular-nums`를 적용했다 |
 | 20 | 헤더의 갱신 시각은 `HH:MM:SS` 고정폭으로 표시한다(전체 일시는 툴팁) | ko-KR 로캘의 "4시 45분 44초" 표기는 길고 폭이 계속 바뀐다 |
 | 21 | 기존 사용자 미커밋 변경 중 `index.html` 부분만 이번 커밋에 포함했고, 나머지(`main.py` 등)는 커밋하지 않았다 | `index.html`은 전면 재작성이라 분리가 불가능했다. 백엔드 변경은 이번 작업 범위 밖이고 사용자가 진행 중이던 작업이다 |
 | 22 | 정렬용 `kpNum`은 HEAD와 똑같이 두고(`null`이 0%로 섞임), 표시용 `numOrNull`을 따로 만들었다 | 리뷰에서 처음 버전이 `kpNum`을 바꿔 김프 없는 종목의 정렬 위치가 HEAD와 달라진 것을 찾았다. 정렬은 표시가 아니라 동작이므로 동등성을 우선했다. HEAD 동작이 의도에 맞는지는 남은 이슈 9에 적었다 |

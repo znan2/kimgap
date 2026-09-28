@@ -12,3 +12,4 @@ PUBLIC_THREAT_REVIEW.md
 .claude/
 SECURITY_AUDIT.md
 data/*.json
+dist/

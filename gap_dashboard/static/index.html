@@ -4,10 +4,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0a0a0a" />
+  <!-- 실행 모드: live = 운영(서버 /ws/gaps 연결), demo = 정적 데모(서버·거래소 호출 없음). scripts/build_demo.py가 demo로 바꿔 dist/에 쓴다 -->
+  <meta name="kimgap-mode" content="live" />
   <title>차익 대시보드</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
   <style>
+    /* Pretendard(OFL-1.1)에서 이 UI가 쓰는 글자만 남긴 subset. 수정본이라 이름은 Kimgap Sans (static/fonts/OFL.txt, scripts/subset_font.py) */
+    @font-face {
+      font-family: "Kimgap Sans";
+      font-style: normal;
+      font-weight: 45 930;
+      font-display: swap;
+      src: url("static/fonts/KimgapSans-Variable.subset.woff2") format("woff2-variations"),
+        url("static/fonts/KimgapSans-Variable.subset.woff2") format("woff2");
+    }
     /* 디자인 토큰: portfolio/DESIGN.md (다크 핀테크 대시보드, 한국식 상승·하락, 민트 강조) */
     :root {
       color-scheme: dark;
@@ -39,7 +48,7 @@
       --accent-bg: rgba(60, 232, 160, 0.12);
       --focus-ring: 0 0 0 3px rgba(60, 232, 160, 0.35);
 
-      --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+      --font-sans: "Kimgap Sans", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
       --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
       --space-1: 4px;
@@ -681,6 +690,8 @@
       color: var(--text-tertiary);
     }
 
+    .demo-note { margin: 0 0 var(--space-2); color: var(--warning); }
+
     /* ── 코인 상세 모달 ───────────────────────────────── */
     .coin-modal {
       position: fixed;
@@ -823,7 +834,7 @@
       .appbar-inner, .page, footer.page-foot { padding-left: var(--space-4); padding-right: var(--space-4); }
       .appbar-inner { height: 56px; }
       .brand-sub, .updated { display: none; }
-      .conn { max-width: 150px; }
+      .conn { max-width: 190px; padding: 0 10px; }
       .page { padding-top: var(--space-4); gap: var(--space-3); }
       .kpi-strip { grid-template-columns: 1fr 1fr; }
       .kpi { padding: var(--space-4); }
@@ -961,7 +972,8 @@
   </main>
 
   <footer class="page-foot">
-    브라우저는 <code>WebSocket /ws/gaps</code>로 갱신 페이로드를 수신합니다(폴백 <code>GET /api/gaps</code>). 시세: 업비트 <code>/v1/market/all</code> · <code>/v1/ticker</code>, 빗썸 <code>/public/ticker/ALL_KRW</code>, Binance/Bybit/Bitget/Gate.io public WebSocket. 입출금(선택): <code>/v1/status/wallet</code> + API 키. 국내 탭 갭% = (고가 − 저가) ÷ 저가 × 100. 해외 비교 탭은 국내 KRW ÷ 업비트 KRW-USDT로 USDT 환산 후 해외 거래소 USDT 가격과 비교합니다. 수수료·슬리피지·호가는 미반영입니다. 김프 색상은 한국식(▲ 빨강 = 국내가 비쌈, ▼ 파랑 = 국내가 쌈)입니다.
+    <p id="demoNote" class="demo-note" hidden>이 화면은 정적 데모입니다. 가격·김프·입출금 상태는 브라우저에서 만든 가상 데이터이며, 서버·거래소 API를 호출하지 않습니다. 실제 잔고·주소·출금 한도는 포함하지 않습니다.</p>
+    <span id="liveTransportNote">브라우저는 <code>WebSocket /ws/gaps</code>로 갱신 페이로드를 수신합니다(폴백 <code>GET /api/gaps</code>).</span> 시세: 업비트 <code>/v1/market/all</code> · <code>/v1/ticker</code>, 빗썸 <code>/public/ticker/ALL_KRW</code>, Binance/Bybit/Bitget/Gate.io public WebSocket. 입출금(선택): <code>/v1/status/wallet</code> + API 키. 국내 탭 갭% = (고가 − 저가) ÷ 저가 × 100. 해외 비교 탭은 국내 KRW ÷ 업비트 KRW-USDT로 USDT 환산 후 해외 거래소 USDT 가격과 비교합니다. 수수료·슬리피지·호가는 미반영입니다. 김프 색상은 한국식(▲ 빨강 = 국내가 비쌈, ▼ 파랑 = 국내가 쌈)입니다.
   </footer>
 
   <div id="coin-modal" class="coin-modal" hidden>
@@ -1008,8 +1020,17 @@
     const coinModalClose = document.getElementById("coin-modal-close");
     const tabButtons = Array.from(document.querySelectorAll(".seg-btn[data-tab]"));
 
-    /** 목업 데이터 모드: ?mock=1 — 서버·거래소에 연결하지 않고 static/mock-data.js의 가상 데이터로 렌더링 */
-    const MOCK_MODE = new URLSearchParams(location.search).get("mock") === "1";
+    /**
+     * 실행 모드
+     * - DEMO_MODE: <meta name="kimgap-mode" content="demo"> (정적 데모 빌드). 서버 API·WebSocket·거래소 API를 호출하지 않는다.
+     * - MOCK_MODE: 데모이거나, 운영 페이지를 ?mock=1로 연 경우. static/mock-data.js의 가상 데이터를 타이머로 주입한다.
+     * - 그 외(live): 기존 운영 경로 그대로 WebSocket /ws/gaps에 연결한다.
+     */
+    const modeMeta = document.querySelector('meta[name="kimgap-mode"]');
+    const DEMO_MODE = !!modeMeta && modeMeta.content === "demo";
+    const MOCK_MODE = DEMO_MODE || new URLSearchParams(location.search).get("mock") === "1";
+    const MOCK_TICK_MS = DEMO_MODE ? 3000 : 5000;
+    const MOCK_BADGE_TEXT = "데모 데이터로 동작 중";
 
     let lastPayload = null;
     let activeTab = "domestic";
@@ -1017,10 +1038,11 @@
 
     const EXCHANGES = {
       binance: { label: "Binance", ko: "바이낸스", logo: null },
-      bybit: { label: "Bybit", ko: "바이비트", logo: "/static/bybit-logo.png" },
-      bitget: { label: "Bitget", ko: "비트겟", logo: "/static/bitget-logo.png" },
-      okx: { label: "OKX", ko: "OKX", logo: "/static/okx-logo.png" },
-      gate: { label: "Gate.io", ko: "Gate.io", logo: "/static/gate-logo.png", wide: true },
+      // 상대 경로: 운영(FastAPI "/")에서는 /static/…, 정적 데모(dist/index.html)에서는 dist/static/…으로 풀린다
+      bybit: { label: "Bybit", ko: "바이비트", logo: "static/bybit-logo.png" },
+      bitget: { label: "Bitget", ko: "비트겟", logo: "static/bitget-logo.png" },
+      okx: { label: "OKX", ko: "OKX", logo: "static/okx-logo.png" },
+      gate: { label: "Gate.io", ko: "Gate.io", logo: "static/gate-logo.png", wide: true },
     };
 
     function setConnBadge(mode, text) {
@@ -1288,7 +1310,9 @@
         ${netSection}
         <div class="m-section">
           <h4>일일 출금 한도 (본인 계정)</h4>
-          <p class="m-hint">본인 API 키로 조회한 값을 서버에 캐시한 것입니다. 출금조회 권한이 없거나 아직 로딩 중이면 — 로 보입니다.</p>
+          <p class="m-hint">${MOCK_MODE
+            ? "데모 데이터에는 출금 한도를 넣지 않았습니다. 운영 모드에서는 본인 API 키로 조회한 값이 표시됩니다."
+            : "본인 API 키로 조회한 값을 서버에 캐시한 것입니다. 출금조회 권한이 없거나 아직 로딩 중이면 — 로 보입니다."}</p>
           <div class="m-grid-2">
             <div class="m-box"><div class="m-box-head">업비트</div>${upLimits}</div>
             <div class="m-box"><div class="m-box-head">빗썸</div>${bhLimits}</div>
@@ -1794,11 +1818,12 @@
     function applyPayload(data) {
       if (!data || data.type === "error") return;
       lastPayload = data;
-      setConnBadge(MOCK_MODE ? "mock" : "", MOCK_MODE ? "목업 데이터" : "실시간");
+      setConnBadge(MOCK_MODE ? "mock" : "", MOCK_MODE ? MOCK_BADGE_TEXT : "실시간");
       const m = data.meta || {};
       renderSummary(data);
       renderMeta(m);
       updateWlButton(m);
+      if (MOCK_MODE) lockWlButtonForMock();
       refreshViews();
     }
 
@@ -1848,19 +1873,28 @@
       connectWs();
     }
 
-    /** 목업 모드 부트스트랩: WebSocket 대신 mock-data.js 페이로드를 주기적으로 주입 */
-    function startMock() {
-      setConnBadge("wait", "목업 로드 중…");
-      // fetch 가로채기가 설치되기 전 클릭으로 실제 /api 요청이 나가지 않게 막는다 (applyPayload에서 다시 켜짐)
+    /** 데모·목업에는 출금 한도 데이터가 없으므로 버튼을 끄고 이유를 보여준다 (실제 /api 요청 경로 차단 겸용) */
+    function lockWlButtonForMock() {
       btnWl.disabled = true;
+      btnWl.textContent = "출금한도 · 데모 제외";
+      btnWl.title = "데모 데이터에는 출금 한도가 없습니다";
+    }
+
+    /** 데모·목업 부트스트랩: WebSocket 대신 mock-data.js 페이로드를 타이머로 주기 주입해 실시간 갱신을 흉내 낸다 */
+    function startMock() {
+      setConnBadge("wait", "데모 데이터 로드 중…");
+      lockWlButtonForMock();
+      document.getElementById("demoNote").hidden = false;
+      document.getElementById("liveTransportNote").hidden = true;
       const s = document.createElement("script");
-      s.src = "/static/mock-data.js";
+      s.src = "static/mock-data.js";
       s.onload = () => {
         window.GapMock.install();
         applyPayload(window.GapMock.payload());
-        setInterval(() => applyPayload(window.GapMock.tick()), 5000);
+        setInterval(() => applyPayload(window.GapMock.tick()), MOCK_TICK_MS);
       };
-      s.onerror = () => setConnBadge("err", "목업 데이터 로드 실패");
+      // 데모에서는 실패해도 운영 경로(WebSocket)로 넘어가지 않는다
+      s.onerror = () => setConnBadge("err", "데모 데이터 로드 실패");
       document.head.appendChild(s);
     }
 

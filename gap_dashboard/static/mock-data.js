@@ -1,9 +1,10 @@
 /*
- * 목업 데이터 모드 전용 (index.html?mock=1 일 때만 로드된다).
+ * 데모·목업 데이터 (정적 데모 빌드, 또는 운영 페이지의 ?mock=1 에서만 로드된다).
  *
  * - /ws/gaps 페이로드와 같은 모양의 JSON을 브라우저 안에서 만든다. 서버·거래소 API를 호출하지 않는다.
- * - 가격·김프·출금 한도는 모두 가상의 값이다. 실제 시세, 잔고, 지갑 주소가 아니다.
- * - 스키마 기준: gap_dashboard/main.py 의 _compute_gaps_payload() (읽기 전용으로 참고).
+ * - 가격·김프는 가상의 값이다. 실제 시세, 잔고, 지갑 주소, 출금 한도 금액은 넣지 않는다
+ *   (withdraw_limits 필드 자체를 만들지 않는다).
+ * - 스키마 기준: gap_dashboard/main.py 의 _compute_gaps_payload().
  */
 (function () {
   "use strict";
@@ -21,8 +22,15 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  let rand = mulberry32(20260928);
-  const jitter = (pct) => 1 + (rand() * 2 - 1) * (pct / 100);
+  const rand = mulberry32(20260928);
+  /** 표준정규 난수 (Box–Muller) */
+  function gauss() {
+    const u = 1 - rand();
+    const v = rand();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  /** 평균 회귀 노이즈: 매 틱 조금씩 움직이되 기준값에서 멀리 흘러가지 않는다 */
+  const revert = (x, keep, sd) => x * keep + gauss() * sd;
 
   // 해외 상장 코드: B=Binance, Y=Bybit, G=Bitget, O=OKX, T=Gate.io
   const ALL = "BYGOT";
@@ -144,33 +152,36 @@
     return { up, bh };
   }
 
-  // 코인별 상태(가격은 tick마다 흔들린다)
+  // 코인별 상태. 기준가(base*)는 고정하고, 틱마다 평균 회귀 노이즈(d*)만 바뀐다.
+  //   시장 공통 움직임(dMkt)은 업비트·빗썸·해외에 함께 걸리고, 거래소별 개별 움직임이 김프·갭을 조금씩 흔든다.
   const state = COINS.map(([sym, krw, kp, bhGap, opts]) => {
-    const refUsdt = kp == null ? null : krw / USDT_KRW_BASE / (1 + kp / 100);
-    return { sym, upbit: krw, bithumb: krw * (1 + bhGap / 100), refUsdt, opts, nets: networksFor(opts) };
+    const baseRef = kp == null ? null : krw / USDT_KRW_BASE / (1 + kp / 100);
+    return {
+      sym,
+      opts,
+      nets: networksFor(opts),
+      baseUp: krw,
+      baseBh: krw * (1 + bhGap / 100),
+      baseRef,
+      dMkt: 0,
+      dUp: 0,
+      dBh: 0,
+      dRef: 0,
+      upbit: krw,
+      bithumb: krw * (1 + bhGap / 100),
+      refUsdt: baseRef,
+    };
   });
+  let dRate = 0;
   let usdtKrw = USDT_KRW_BASE;
-  // 출금 한도를 조회하는 대상 = 해외 기준가가 있는 종목 (payload의 withdraw_limits 행 수와 일치)
-  const LIMIT_TOTAL = state.filter((c) => c.refUsdt != null).length;
-  let wl = { status: "done", progress: "", count: LIMIT_TOTAL, ts: Date.now() - 6 * 60 * 1000, loadingTicks: 0 };
+  // 출금 한도: 데모·목업에는 금액을 넣지 않는다. 상태만 "조회 결과 0건"으로 둔다.
+  const WL = { status: "done", progress: "", count: 0, ts: null };
 
   function roundPrice(v) {
     if (v >= 1000) return Math.round(v);
     if (v >= 100) return Math.round(v * 10) / 10;
     if (v >= 1) return Math.round(v * 100) / 100;
     return Number(v.toPrecision(4));
-  }
-
-  function withdrawLimitsFor(sym, krw) {
-    // 거래소 기본 한도처럼 보이는 가상의 값 (계정 정보 아님)
-    const dailyKrw = 500000000;
-    return {
-      upbit_daily: Number((dailyKrw / krw).toPrecision(4)),
-      upbit_remaining_krw: dailyKrw,
-      upbit_min: Number((10000 / krw).toPrecision(2)),
-      bithumb_daily: Number((dailyKrw / krw).toPrecision(4)),
-      bithumb_min: Number((12000 / krw).toPrecision(2)),
-    };
   }
 
   function buildPayload() {
@@ -222,7 +233,6 @@
         row.bithumb_wallet = walletFrom(c.nets.bh);
         row.bithumb_networks = c.nets.bh;
       }
-      if (wl.status === "done" && c.refUsdt != null) row.withdraw_limits = withdrawLimitsFor(c.sym, up);
       gaps.push(row);
 
       if (c.refUsdt == null) return;
@@ -316,10 +326,10 @@
         gate_spot_registry: reg(2310),
         gate_futures_registry: regF(610),
         kp_available: gaps.filter((r) => r.kp_upbit != null).length,
-        wl_status: wl.status,
-        wl_progress: wl.progress,
-        wl_count: wl.status === "done" ? gaps.filter((r) => r.withdraw_limits).length : wl.count,
-        wl_ts: wl.ts,
+        wl_status: WL.status,
+        wl_progress: WL.progress,
+        wl_count: WL.count,
+        wl_ts: WL.ts,
       },
       gaps,
       spot_comparisons: spot,
@@ -338,50 +348,48 @@
     };
   }
 
+  /** 실시간 WebSocket 갱신 흉내: 호출할 때마다 가격을 한 틱 움직이고 새 페이로드를 돌려준다 */
   function tick() {
-    usdtKrw = USDT_KRW_BASE * jitter(0.05);
+    // 정상 상태 표준편차: 환율 약 0.05%, 시장 공통 약 0.25%, 거래소별 약 0.08~0.1%
+    dRate = revert(dRate, 0.9, 0.0002);
+    usdtKrw = USDT_KRW_BASE * (1 + dRate);
     state.forEach((c) => {
-      const move = jitter(0.12);
-      c.upbit *= move * jitter(0.03);
-      c.bithumb *= move * jitter(0.03);
-      if (c.refUsdt != null) c.refUsdt *= move * jitter(0.04);
+      c.dMkt = revert(c.dMkt, 0.92, 0.001);
+      c.dUp = revert(c.dUp, 0.85, 0.0005);
+      c.dBh = revert(c.dBh, 0.85, 0.0005);
+      c.dRef = revert(c.dRef, 0.85, 0.0004);
+      c.upbit = c.baseUp * (1 + c.dMkt + c.dUp);
+      c.bithumb = c.baseBh * (1 + c.dMkt + c.dBh);
+      if (c.baseRef != null) c.refUsdt = c.baseRef * (1 + dRate + c.dMkt + c.dRef);
     });
-    if (wl.status === "loading") {
-      wl.loadingTicks += 1;
-      wl.count = Math.min(LIMIT_TOTAL, wl.loadingTicks * 13);
-      wl.progress = `${wl.count}/${LIMIT_TOTAL}`;
-      if (wl.loadingTicks >= 3) wl = { status: "done", progress: "", count: LIMIT_TOTAL, ts: Date.now(), loadingTicks: 0 };
-    }
     return buildPayload();
   }
 
   const json = (body) =>
     Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
 
-  /** /api/* 요청을 목업 응답으로 가로챈다. 목업 모드에서만 호출된다. */
+  /** /api/* 요청을 목업 응답으로 가로챈다(네트워크로 나가지 않음). 데모·목업 모드에서만 호출된다. */
   function install() {
     const realFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
       const url = typeof input === "string" ? input : input && input.url;
       const path = url ? new URL(url, location.href).pathname : "";
-      if (path === "/api/refresh-limits") {
-        if (wl.status === "loading") return json({ status: wl.status, progress: wl.progress, msg: "이미 로딩 중" });
-        wl = { status: "loading", progress: `0/${LIMIT_TOTAL}`, count: 0, ts: wl.ts, loadingTicks: 0 };
-        return json({ status: "started", msg: "백그라운드 조회 시작" });
+      if (path.endsWith("/api/refresh-limits")) {
+        return json({ status: WL.status, msg: "데모 데이터에는 출금 한도를 포함하지 않습니다" });
       }
-      if (path === "/api/limits-status") {
+      if (path.endsWith("/api/limits-status")) {
         return json({
-          status: wl.status,
-          progress: wl.progress,
-          cached_count: wl.count,
-          cached_at_ms: wl.ts,
-          loading: wl.status === "loading",
+          status: WL.status,
+          progress: WL.progress,
+          cached_count: 0,
+          cached_at_ms: null,
+          loading: false,
           last_error: "",
-          stats: { upbit_attempted: LIMIT_TOTAL, upbit_success: LIMIT_TOTAL, bithumb_attempted: LIMIT_TOTAL, bithumb_success: LIMIT_TOTAL - 1 },
+          stats: { upbit_attempted: 0, upbit_success: 0, bithumb_attempted: 0, bithumb_success: 0 },
         });
       }
-      if (path === "/api/gaps") return json(buildPayload());
-      if (path.startsWith("/api/")) return json({ detail: "mock: 지원하지 않는 경로" });
+      if (path.endsWith("/api/gaps")) return json(buildPayload());
+      if (path.includes("/api/")) return json({ detail: "mock: 지원하지 않는 경로" });
       return realFetch(input, init);
     };
   }
