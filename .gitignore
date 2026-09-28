@@ -13,3 +13,4 @@ PUBLIC_THREAT_REVIEW.md
 SECURITY_AUDIT.md
 data/*.json
 dist/
+.wrangler/
