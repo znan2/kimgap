@@ -4,4 +4,11 @@ __pycache__/
 .env
 .env.local
 .env.*.local
-data/alert_config.json
+PUBLIC_THREAT_REVIEW.md
+*.pem
+*.key
+*.log
+.DS_Store
+.claude/
+SECURITY_AUDIT.md
+data/*.json
