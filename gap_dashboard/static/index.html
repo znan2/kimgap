@@ -309,7 +309,6 @@
       color: var(--text-secondary);
     }
     .ex-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .ex-logo.wide img { object-fit: contain; background: #fff; }
 
     /* ── 보드(메인 표 카드) ───────────────────────────── */
     .board-head {
@@ -1038,7 +1037,7 @@
       bybit: { label: "Bybit", ko: "바이비트", logo: "static/bybit-logo.png" },
       bitget: { label: "Bitget", ko: "비트겟", logo: "static/bitget-logo.png" },
       okx: { label: "OKX", ko: "OKX", logo: "static/okx-logo.png" },
-      gate: { label: "Gate.io", ko: "Gate.io", logo: "static/gate-logo.png", wide: true },
+      gate: { label: "Gate.io", ko: "Gate.io", logo: "static/gate-logo.png" },
     };
 
     function setConnBadge(mode, text) {
@@ -1135,7 +1134,7 @@
       const ex = EXCHANGES[key];
       const label = ex ? ex.label : fallbackLabel || "?";
       if (ex && ex.logo) {
-        return `<span class="ex-logo${ex.wide ? " wide" : ""}"><img src="${ex.logo}" alt="" loading="lazy" /></span>`;
+        return `<span class="ex-logo"><img src="${ex.logo}" alt="" loading="lazy" /></span>`;
       }
       return `<span class="ex-logo" aria-hidden="true">${escHtml(String(label).slice(0, 1))}</span>`;
     }
