@@ -1,7 +1,66 @@
-# UI 리빌드 노트 (ui-rebuild → static-demo)
+# UI 리빌드 노트 (ui-rebuild → static-demo → fix-exchanges)
 
 기준 문서: `~/portfolio/DESIGN.md` (다크 핀테크 대시보드, 한국식 상승·하락 색, 브랜드 강조색 **민트 `#3ce8a0` 확정**)
 작업일: 2026-09-28
+
+---
+
+## 거래소 수정 (fix-exchanges 브랜치)
+
+### OKX 구현 상태 조사 (작업 전)
+
+| 계층 | 있던 것 | 없던 것 |
+|---|---|---|
+| 백엔드 수집 | 기동 시 공개 레지스트리(`/api/v5/public/instruments` SPOT·SWAP), 김프 기준가 fallback용 현물 REST 티커 | **WebSocket 가격 수신**, 스왑 REST 티커, 가격 스냅샷, lifespan 시작·종료 |
+| API 응답 | `gaps` 행의 `okx_spot_symbol`·`okx_futures_symbol`, `meta.okx_*_registry`, `ref_usdt_stats.okx` | **`okx_spot_comparisons`·`okx_futures_comparisons`**, 현물·선물 합계 목록 포함, `meta.okx_*_price_symbols`·`okx_*_compared` |
+| 프론트엔드 | 코인 모달의 상장 카드, `EXCHANGES.okx` 로고 | 상단 "해외 시세 수신" 칩, `findGapRow`의 OKX 목록 검색, 푸터 설명 |
+| 목업 | 상장 심볼, 기준가 출처 | 비교 행(`COMPARE_EX`에서 제외돼 있었음), OKX 메타 |
+
+→ 결론: 레지스트리까지만 있고, 다른 4곳처럼 **시세를 받아 비교 탭에 보여주는 경로가 통째로 빠져 있었다.**
+
+### 변경 요약
+
+| 파일 | 내용 |
+|---|---|
+| `gap_dashboard/main.py` | OKX를 Bybit·Bitget과 같은 구조로 완성: `OKX_PUBLIC_WS`, `_OKX_SPOT_WS_PRICES`/`_OKX_SWAP_WS_PRICES`/`_OKX_PRICE_LOCK`/`_OKX_WS_TASKS`, `_okx_ws_ticker_loop`(`tickers` 채널, 50개씩 구독), `_start/_stop_okx_ws_tasks`, `_fetch_okx_usdt_swap_prices`, `_okx_price_snapshots`(WS 가격 수가 `max(100, 레지스트리의 80%)` 미만이면 REST로 채움). `_compute_gaps_payload`에 OKX 비교 행·메타·응답 키 추가, 현물·선물 합계 목록에 포함. **공개 API만 사용, API 키 없음** |
+| `gap_dashboard/static/binance-logo.png` (신규) | 225×225 RGB PNG(Bybit·OKX와 같은 형식). Simple Icons의 바이낸스 SVG(CC0, 상표는 바이낸스 소유)를 공식 색 `#F0B90B`로 어두운 배경에 렌더링 |
+| `gap_dashboard/static/index.html` | 바이낸스 로고 연결, "해외 시세 수신"에 OKX 칩 추가, `findGapRow`에 OKX 목록, 푸터 거래소 목록에 OKX |
+| `gap_dashboard/static/mock-data.js` | 비교 대상에 OKX 추가(`okx_spot_comparisons`·`okx_futures_comparisons`, 메타), OKX 레지스트리 수를 실제 조회값(현물 406, 스왑 477)에 맞춤 |
+| `gap_dashboard/static/fonts/` | `main.py`의 새 문구로 subset 재생성(475자, 104 KiB) |
+| `README.md` | 해외 거래소 5곳과 공개 API만 쓴다는 설명 |
+
+### 결정과 이유
+
+| # | 결정 | 이유 |
+|---|---|---|
+| E1 | 바이낸스 로고는 런타임에 외부에서 받지 않고, 개발 시점에 Simple Icons SVG를 한 번 받아 PNG로 만들어 커밋했다 | CSP(`img-src 'self'`)와 "외부 URL 금지" 요구. Simple Icons 아이콘 데이터는 CC0이고, 로고는 거래소 식별 용도로만 쓴다(다른 거래소 로고와 같은 용도) |
+| E2 | OKX WebSocket은 프로토콜 ping을 끄고, 20초 동안 수신이 없으면 문자열 `"ping"`을 보낸다. **ping 뒤에도 20초 동안 아무 메시지가 없으면 재연결한다** | OKX 공식 규칙(30초 무수신 시 연결 종료, 문자열 ping/pong). 리뷰에서 처음 버전은 pong을 확인하지 않아, 반쯤 끊긴 연결에서 멈춘 가격을 실시간처럼 계속 쓴다는 지적을 받아 고쳤다(다른 거래소의 `ping_timeout`과 비슷하게 약 40초 안에 감지) |
+| E5 | `_build_exchange_comparison_rows`에 `symbol_format` 인자(기본값 `{base}USDT`)를 더해, OKX는 레지스트리 로드 실패 시에도 `BTC-USDT` / `BTC-USDT-SWAP`로 표시한다 | 리뷰 지적 반영. 다른 거래소는 기본값이라 동작이 바뀌지 않는다 |
+| E3 | 스왑 REST 가격의 베이스는 레지스트리(`ctValCcy`)의 instId→베이스 매핑을 우선한다 | 레지스트리와 같은 기준으로 비교 행 심볼이 맞도록 한다 |
+| E4 | 백엔드 검증은 uvicorn을 띄우지 않고, `main.py`에서 `.env` 로드 3줄을 AST로 뺀 사본을 메모리에서 실행했다 | `.env`(API 키)를 읽지 않고, 인증 API를 호출하지 않은 채 공개 API로만 확인하기 위해서다 |
+
+### 검증 결과
+
+| 검사 | 결과 |
+|---|---|
+| OKX 공개 API 실측(키 미로드 확인) | ✅ 레지스트리 현물 406·스왑 477, REST 현물 406·스왑 477. WebSocket 두 연결이 45초 동안 유지, BTC 가격 9번 변경. 비교 행 현물·선물 모두 정상(`BTC-USDT`, `BTC-USDT-SWAP`). 태스크 정리 확인 |
+| `_compute_gaps_payload()` 1회 실행(공개 API만, 지갑 모드 `off`) | ✅ 응답에 `okx_spot_comparisons`·`okx_futures_comparisons`, 메타 `okx_spot_compared` 226·`okx_futures_compared` 226. `spot_compared`와 `futures_compared`가 거래소별 합과 일치, 합계 목록에 5개 거래소 모두 포함 |
+| 데모 30초 네트워크 관찰 | ✅ 다른 출처 0, WebSocket 0, `/api`·`/ws` 0, CSP 위반 0, 콘솔 오류 0. 요청 8건(로고 5개 포함) |
+| 로고 표시(데모) | ✅ 상단 칩, 해외 현물·선물 표, 코인 모달에서 Binance·Bybit·Bitget·OKX·Gate.io 로고가 모두 로드됨(`naturalWidth > 0`). 현물·선물 탭에 OKX 행 있음 |
+| 운영 모드 회귀 | ✅ `live`는 `/ws/gaps` 연결 시도, `?mock=1`은 로고 5개 로드 |
+| 정적 검사 | ✅ `pyflakes`(main.py, scripts), `py_compile`, `node --check`, `html-validate`. ESLint는 기존과 같은 3건(운영 WS 코드의 빈 `catch`)만 남음 |
+| OKX WS 끊김 감지(로컬 가짜 서버, 타임아웃만 1초로 줄인 사본) | ✅ pong을 안 주는 서버에서는 6.5초 동안 3번 재연결하고 새 가격을 받음. pong을 주는 서버에서는 ping 6번 동안 재연결 0회 |
+| 심볼 fallback | ✅ 레지스트리가 비어도 OKX는 `BTC-USDT`, `BTC-USDT-SWAP`이고, 다른 거래소 기본값(`BTCUSDT`)은 그대로 |
+| 코드 리뷰(서브에이전트, 읽기 전용) | 중간 1건(E2), 낮음 1건(E5), 참고 2건. 중간·낮음은 반영하고 위 검사를 다시 실행했다. 참고 중 표 심볼 대체 목록에 `okx_*_symbol`을 추가했고, `findGapRow` 순서는 기능 영향이 없어 그대로 두었다 |
+
+스크린샷 9장(`~/portfolio/assets/kimgap/`)을 이 빌드로 다시 찍었다. `dist/`는 11개 파일, 278 KiB다.
+
+### 남은 이슈
+
+- `bitget-logo.png`는 확장자는 PNG지만 실제로는 1024×1024 JPEG다. 표시에는 문제가 없고 이번 범위(바이낸스 로고)가 아니라서 그대로 두었다.
+- OKX 로고 원본은 흰 배경에 작은 워드마크라 20px 원형에서는 글자가 작게 보인다.
+- `CLAUDE.md`의 아키텍처 설명에는 WebSocket 수신 거래소가 "Binance, Bybit, Bitget, Gate.io"로 적혀 있어 OKX가 빠져 있다. 요청 범위(README) 밖이라 고치지 않았다.
+- 김프 기준가(`_fetch_reference_usdt_prices`)는 요청마다 5개 거래소 REST를 호출하는 기존 구조 그대로다. OKX WebSocket 캐시를 여기에 재사용하도록 바꾸면 호출이 줄어들지만, 기존 동작 변경이라 하지 않았다.
 
 ---
 

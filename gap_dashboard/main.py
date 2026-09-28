@@ -48,6 +48,7 @@ BITGET_USDT_FUTURES_TICKERS = "https://api.bitget.com/api/v2/mix/market/tickers"
 BITGET_WS = "wss://ws.bitget.com/v2/ws/public"
 OKX_INSTRUMENTS = "https://www.okx.com/api/v5/public/instruments"
 OKX_TICKERS = "https://www.okx.com/api/v5/market/tickers"
+OKX_PUBLIC_WS = "wss://ws.okx.com:8443/ws/v5/public"
 GATE_SPOT_PAIRS = "https://api.gateio.ws/api/v4/spot/currency_pairs"
 GATE_USDT_CONTRACTS = "https://api.gateio.ws/api/v4/futures/usdt/contracts"
 GATE_SPOT_TICKERS = "https://api.gateio.ws/api/v4/spot/tickers"
@@ -95,6 +96,10 @@ _OKX_SPOT_USDT_BASES: frozenset[str] = frozenset()
 _OKX_SPOT_USDT_SYMBOL_BY_BASE: dict[str, str] = {}
 _OKX_SWAP_USDT_BASES: frozenset[str] = frozenset()
 _OKX_SWAP_USDT_SYMBOL_BY_BASE: dict[str, str] = {}
+_OKX_SPOT_WS_PRICES: dict[str, float] = {}
+_OKX_SWAP_WS_PRICES: dict[str, float] = {}
+_OKX_PRICE_LOCK = asyncio.Lock()
+_OKX_WS_TASKS: list[asyncio.Task[None]] = []
 # Gate.io
 _GATE_SPOT_USDT_BASES: frozenset[str] = frozenset()
 _GATE_SPOT_USDT_SYMBOL_BY_BASE: dict[str, str] = {}
@@ -152,11 +157,13 @@ async def _app_lifespan(_app: FastAPI):
     _start_binance_ws_tasks()
     _start_bybit_ws_tasks()
     _start_bitget_ws_tasks()
+    _start_okx_ws_tasks()
     _start_gate_ws_tasks()
     yield
     await _stop_binance_ws_tasks()
     await _stop_bybit_ws_tasks()
     await _stop_bitget_ws_tasks()
+    await _stop_okx_ws_tasks()
     await _stop_gate_ws_tasks()
 
 
@@ -944,6 +951,163 @@ async def _fetch_okx_usdt_spot_prices(client: httpx.AsyncClient) -> dict[str, fl
     except Exception as e:
         _LOG.info("OKX spot tickers 로드 실패(김프 fallback): %s", e)
     return out
+
+
+async def _fetch_okx_usdt_swap_prices(client: httpx.AsyncClient) -> dict[str, float]:
+    """OKX USDT 무기한 스왑 ticker에서 가격(베이스→가격). instId → 베이스는 SWAP 레지스트리 기준."""
+    out: dict[str, float] = {}
+    inst_to_base = {sym: base for base, sym in _OKX_SWAP_USDT_SYMBOL_BY_BASE.items()}
+    try:
+        r = await client.get(OKX_TICKERS, params={"instType": "SWAP"}, timeout=45.0)
+        r.raise_for_status()
+        body = r.json()
+        items = body.get("data") if isinstance(body, dict) else None
+        if not isinstance(items, list):
+            return out
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            inst = str(item.get("instId") or "").upper()
+            if not inst.endswith("-USDT-SWAP"):
+                continue
+            base = inst_to_base.get(inst) or inst.split("-", 1)[0]
+            if not base:
+                continue
+            price = _safe_float(item.get("last"))
+            if price and price > 0 and base not in out:
+                out[base] = price
+    except Exception as e:
+        _LOG.info("OKX swap tickers 로드 실패: %s", e)
+    return out
+
+
+async def _okx_ws_ticker_loop(
+    *,
+    name: str,
+    symbol_by_base_getter,
+    target: dict[str, float],
+) -> None:
+    """OKX v5 public `tickers` 채널을 instId별로 구독해 메모리 가격 캐시로 유지한다.
+
+    OKX는 30초 동안 메시지가 없으면 연결을 끊으므로, 20초간 수신이 없으면 문자열 "ping"을 보낸다(응답은 "pong").
+    ping 뒤에도 20초 동안 아무 메시지가 없으면 반쯤 끊긴 연결로 보고 재연결한다(멈춘 가격을 계속 쓰지 않도록).
+    """
+    while True:
+        try:
+            symbol_by_base = symbol_by_base_getter()
+            if not symbol_by_base:
+                await asyncio.sleep(5.0)
+                continue
+            symbol_to_base = {sym: base for base, sym in symbol_by_base.items()}
+            args = [{"channel": "tickers", "instId": sym} for sym in sorted(symbol_to_base)]
+            async with websockets.connect(OKX_PUBLIC_WS, ping_interval=None) as ws:
+                for arg_chunk in _chunks(args, 50):
+                    await ws.send(json.dumps({"op": "subscribe", "args": arg_chunk}))
+                    await asyncio.sleep(0.05)
+                awaiting_pong = False
+                while True:
+                    try:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=20.0)
+                    except asyncio.TimeoutError:
+                        if awaiting_pong:
+                            raise ConnectionError("ping 후 20초 동안 응답 없음")
+                        await ws.send("ping")
+                        awaiting_pong = True
+                        continue
+                    awaiting_pong = False
+                    if raw == "pong":
+                        continue
+                    try:
+                        msg = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(msg, dict):
+                        continue
+                    if msg.get("event") == "error":
+                        _LOG.warning("OKX %s 구독 오류: %s %s", name, msg.get("code"), msg.get("msg"))
+                        continue
+                    data = msg.get("data")
+                    if not isinstance(data, list):
+                        continue
+                    updates: dict[str, float] = {}
+                    for item in data:
+                        if not isinstance(item, dict):
+                            continue
+                        base = symbol_to_base.get(str(item.get("instId") or "").upper())
+                        if not base:
+                            continue
+                        price = _safe_float(item.get("last"))
+                        if price and price > 0:
+                            updates[base] = price
+                    if updates:
+                        async with _OKX_PRICE_LOCK:
+                            target.update(updates)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            _LOG.warning("OKX %s WebSocket 재연결 대기: %s", name, e)
+            try:
+                await asyncio.sleep(3.0)
+            except asyncio.CancelledError:
+                break
+
+
+def _start_okx_ws_tasks() -> None:
+    global _OKX_WS_TASKS
+    if _OKX_WS_TASKS:
+        return
+    _OKX_WS_TASKS = [
+        asyncio.create_task(
+            _okx_ws_ticker_loop(
+                name="spot",
+                symbol_by_base_getter=lambda: _OKX_SPOT_USDT_SYMBOL_BY_BASE,
+                target=_OKX_SPOT_WS_PRICES,
+            )
+        ),
+        asyncio.create_task(
+            _okx_ws_ticker_loop(
+                name="swap",
+                symbol_by_base_getter=lambda: _OKX_SWAP_USDT_SYMBOL_BY_BASE,
+                target=_OKX_SWAP_WS_PRICES,
+            )
+        ),
+    ]
+
+
+async def _stop_okx_ws_tasks() -> None:
+    global _OKX_WS_TASKS
+    tasks = _OKX_WS_TASKS
+    _OKX_WS_TASKS = []
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+async def _okx_price_snapshots(
+    client: httpx.AsyncClient,
+) -> tuple[dict[str, float], dict[str, float]]:
+    async with _OKX_PRICE_LOCK:
+        spot = dict(_OKX_SPOT_WS_PRICES)
+        swap = dict(_OKX_SWAP_WS_PRICES)
+    spot_min = max(100, int(len(_OKX_SPOT_USDT_SYMBOL_BY_BASE) * 0.8))
+    swap_min = max(100, int(len(_OKX_SWAP_USDT_SYMBOL_BY_BASE) * 0.8))
+    if len(spot) < spot_min:
+        rest_spot = await _fetch_okx_usdt_spot_prices(client)
+        if rest_spot:
+            spot = {**rest_spot, **spot}
+            async with _OKX_PRICE_LOCK:
+                _OKX_SPOT_WS_PRICES.update(rest_spot)
+    if len(swap) < swap_min:
+        rest_swap = await _fetch_okx_usdt_swap_prices(client)
+        if rest_swap:
+            swap = {**rest_swap, **swap}
+            async with _OKX_PRICE_LOCK:
+                _OKX_SWAP_WS_PRICES.update(rest_swap)
+    return spot, swap
 
 
 async def _fetch_gate_usdt_spot_prices(client: httpx.AsyncClient) -> dict[str, float]:
@@ -1813,8 +1977,12 @@ def _build_exchange_comparison_rows(
     market: str,
     symbol_key: str,
     symbol_by_base: dict[str, str],
+    symbol_format: str = "{base}USDT",
 ) -> list[dict[str, Any]]:
-    """업비트·빗썸 KRW 가격을 업비트 KRW-USDT 기준으로 USDT화해 해외거래소와 비교."""
+    """업비트·빗썸 KRW 가격을 업비트 KRW-USDT 기준으로 USDT화해 해외거래소와 비교.
+
+    symbol_format: 레지스트리에 심볼이 없을 때(기동 시 로드 실패 등) 표시할 거래소 심볼 형식.
+    """
     if not usdt_krw or usdt_krw <= 0:
         return []
     rows: list[dict[str, Any]] = []
@@ -1824,7 +1992,7 @@ def _build_exchange_comparison_rows(
         reference_price = reference_prices.get(bn_base)
         if reference_price is None or reference_price <= 0:
             continue
-        exchange_symbol = symbol_by_base.get(bn_base, f"{bn_base}USDT")
+        exchange_symbol = symbol_by_base.get(bn_base) or symbol_format.format(base=bn_base)
         upbit_usdt = _domestic_usdt_price(upbit.get(sym), usdt_krw)
         bithumb_usdt = _domestic_usdt_price(bithumb.get(sym), usdt_krw)
         upbit_gap = _pct_vs_reference(upbit_usdt, reference_price)
@@ -2003,6 +2171,8 @@ async def _compute_gaps_payload() -> dict[str, Any]:
     bybit_linear_prices: dict[str, float] = {}
     bitget_spot_prices: dict[str, float] = {}
     bitget_futures_prices: dict[str, float] = {}
+    okx_spot_prices: dict[str, float] = {}
+    okx_swap_prices: dict[str, float] = {}
     gate_spot_prices: dict[str, float] = {}
     gate_futures_prices: dict[str, float] = {}
     ref_prices: dict[str, float] = {}
@@ -2018,6 +2188,7 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         binance_p = asyncio.create_task(_binance_price_snapshots(client))
         bybit_p = asyncio.create_task(_bybit_price_snapshots(client))
         bitget_p = asyncio.create_task(_bitget_price_snapshots(client))
+        okx_p = asyncio.create_task(_okx_price_snapshots(client))
         gate_p = asyncio.create_task(_gate_price_snapshots(client))
         usdt_task = asyncio.create_task(_fetch_usdt_krw_rate(client))
         (
@@ -2029,6 +2200,7 @@ async def _compute_gaps_payload() -> dict[str, Any]:
             (binance_spot_prices, binance_futures_prices),
             (bybit_spot_prices, bybit_linear_prices),
             (bitget_spot_prices, bitget_futures_prices),
+            (okx_spot_prices, okx_swap_prices),
             (gate_spot_prices, gate_futures_prices),
             usdt_krw,
         ) = await asyncio.gather(
@@ -2040,6 +2212,7 @@ async def _compute_gaps_payload() -> dict[str, Any]:
             binance_p,
             bybit_p,
             bitget_p,
+            okx_p,
             gate_p,
             usdt_task,
         )
@@ -2141,6 +2314,30 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         symbol_key="bitget_futures_symbol",
         symbol_by_base=_BITGET_USDT_PERP_SYMBOL_BY_BASE,
     )
+    okx_spot_rows = _build_exchange_comparison_rows(
+        upbit,
+        bithumb,
+        okx_spot_prices,
+        usdt_krw,
+        exchange="okx",
+        exchange_label="OKX",
+        market="spot",
+        symbol_key="okx_spot_symbol",
+        symbol_by_base=_OKX_SPOT_USDT_SYMBOL_BY_BASE,
+        symbol_format="{base}-USDT",
+    )
+    okx_futures_rows = _build_exchange_comparison_rows(
+        upbit,
+        bithumb,
+        okx_swap_prices,
+        usdt_krw,
+        exchange="okx",
+        exchange_label="OKX",
+        market="futures",
+        symbol_key="okx_futures_symbol",
+        symbol_by_base=_OKX_SWAP_USDT_SYMBOL_BY_BASE,
+        symbol_format="{base}-USDT-SWAP",
+    )
     gate_spot_rows = _build_exchange_comparison_rows(
         upbit,
         bithumb,
@@ -2164,12 +2361,18 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         symbol_by_base=_GATE_USDT_PERP_SYMBOL_BY_BASE,
     )
     spot_comparison_rows = sorted(
-        [*binance_spot_rows, *bybit_spot_rows, *bitget_spot_rows, *gate_spot_rows],
+        [*binance_spot_rows, *bybit_spot_rows, *bitget_spot_rows, *okx_spot_rows, *gate_spot_rows],
         key=lambda x: x.get("max_abs_gap_pct") or -1,
         reverse=True,
     )
     futures_comparison_rows = sorted(
-        [*binance_futures_rows, *bybit_futures_rows, *bitget_futures_rows, *gate_futures_rows],
+        [
+            *binance_futures_rows,
+            *bybit_futures_rows,
+            *bitget_futures_rows,
+            *okx_futures_rows,
+            *gate_futures_rows,
+        ],
         key=lambda x: x.get("max_abs_gap_pct") or -1,
         reverse=True,
     )
@@ -2232,6 +2435,10 @@ async def _compute_gaps_payload() -> dict[str, Any]:
     meta["bitget_futures_price_symbols"] = len(bitget_futures_prices)
     meta["bitget_spot_compared"] = len(bitget_spot_rows)
     meta["bitget_futures_compared"] = len(bitget_futures_rows)
+    meta["okx_spot_price_symbols"] = len(okx_spot_prices)
+    meta["okx_futures_price_symbols"] = len(okx_swap_prices)
+    meta["okx_spot_compared"] = len(okx_spot_rows)
+    meta["okx_futures_compared"] = len(okx_futures_rows)
     meta["gate_spot_price_symbols"] = len(gate_spot_prices)
     meta["gate_futures_price_symbols"] = len(gate_futures_prices)
     meta["gate_spot_compared"] = len(gate_spot_rows)
@@ -2299,6 +2506,8 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         "bybit_futures_comparisons": bybit_futures_rows,
         "bitget_spot_comparisons": bitget_spot_rows,
         "bitget_futures_comparisons": bitget_futures_rows,
+        "okx_spot_comparisons": okx_spot_rows,
+        "okx_futures_comparisons": okx_futures_rows,
         "gate_spot_comparisons": gate_spot_rows,
         "gate_futures_comparisons": gate_futures_rows,
         "wallet_fully_blocked": fully_blocked,

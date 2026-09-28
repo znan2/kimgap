@@ -973,7 +973,7 @@
 
   <footer class="page-foot">
     <p id="demoNote" class="demo-note" hidden>이 화면은 정적 데모입니다. 가격·김프·입출금 상태는 브라우저에서 만든 가상 데이터이며, 서버·거래소 API를 호출하지 않습니다. 실제 잔고·주소·출금 한도는 포함하지 않습니다.</p>
-    <span id="liveTransportNote">브라우저는 <code>WebSocket /ws/gaps</code>로 갱신 페이로드를 수신합니다(폴백 <code>GET /api/gaps</code>).</span> 시세: 업비트 <code>/v1/market/all</code> · <code>/v1/ticker</code>, 빗썸 <code>/public/ticker/ALL_KRW</code>, Binance/Bybit/Bitget/Gate.io public WebSocket. 입출금(선택): <code>/v1/status/wallet</code> + API 키. 국내 탭 갭% = (고가 − 저가) ÷ 저가 × 100. 해외 비교 탭은 국내 KRW ÷ 업비트 KRW-USDT로 USDT 환산 후 해외 거래소 USDT 가격과 비교합니다. 수수료·슬리피지·호가는 미반영입니다. 김프 색상은 한국식(▲ 빨강 = 국내가 비쌈, ▼ 파랑 = 국내가 쌈)입니다.
+    <span id="liveTransportNote">브라우저는 <code>WebSocket /ws/gaps</code>로 갱신 페이로드를 수신합니다(폴백 <code>GET /api/gaps</code>).</span> 시세: 업비트 <code>/v1/market/all</code> · <code>/v1/ticker</code>, 빗썸 <code>/public/ticker/ALL_KRW</code>, Binance/Bybit/Bitget/OKX/Gate.io public WebSocket. 입출금(선택): <code>/v1/status/wallet</code> + API 키. 국내 탭 갭% = (고가 − 저가) ÷ 저가 × 100. 해외 비교 탭은 국내 KRW ÷ 업비트 KRW-USDT로 USDT 환산 후 해외 거래소 USDT 가격과 비교합니다. 수수료·슬리피지·호가는 미반영입니다. 김프 색상은 한국식(▲ 빨강 = 국내가 비쌈, ▼ 파랑 = 국내가 쌈)입니다.
   </footer>
 
   <div id="coin-modal" class="coin-modal" hidden>
@@ -1037,7 +1037,7 @@
     let modalReturnFocus = null;
 
     const EXCHANGES = {
-      binance: { label: "Binance", ko: "바이낸스", logo: null },
+      binance: { label: "Binance", ko: "바이낸스", logo: "static/binance-logo.png" },
       // 상대 경로: 운영(FastAPI "/")에서는 /static/…, 정적 데모(dist/index.html)에서는 dist/static/…으로 풀린다
       bybit: { label: "Bybit", ko: "바이비트", logo: "static/bybit-logo.png" },
       bitget: { label: "Bitget", ko: "비트겟", logo: "static/bitget-logo.png" },
@@ -1191,6 +1191,10 @@
       r = (lastPayload.bitget_futures_comparisons || []).find((x) => x.symbol === sym);
       if (r) return r;
       r = (lastPayload.gate_spot_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.okx_spot_comparisons || []).find((x) => x.symbol === sym);
+      if (r) return r;
+      r = (lastPayload.okx_futures_comparisons || []).find((x) => x.symbol === sym);
       if (r) return r;
       return (lastPayload.gate_futures_comparisons || []).find((x) => x.symbol === sym) || null;
     }
@@ -1523,7 +1527,7 @@
           <tbody>
       `;
       const body = filtered.slice(0, 220).map((r, i) => {
-        const symbol = r.exchange_symbol || r.binance_spot_symbol || r.binance_futures_symbol || r.bybit_spot_symbol || r.bybit_futures_symbol || r.bitget_spot_symbol || r.bitget_futures_symbol || r.gate_spot_symbol || r.gate_futures_symbol || `${r.mapped_symbol || r.symbol}USDT`;
+        const symbol = r.exchange_symbol || r.binance_spot_symbol || r.binance_futures_symbol || r.bybit_spot_symbol || r.bybit_futures_symbol || r.bitget_spot_symbol || r.bitget_futures_symbol || r.okx_spot_symbol || r.okx_futures_symbol || r.gate_spot_symbol || r.gate_futures_symbol || `${r.mapped_symbol || r.symbol}USDT`;
         const exLabel = r.exchange_label || r.exchange || "—";
         const ref = r.reference_usdt ?? r.binance_usdt;
         const k = `${activeTab}:${r.exchange}:${r.symbol}`;
@@ -1752,7 +1756,7 @@
           );
       kpiStrip.innerHTML = rate + btcKp + pairs + kp + issues;
 
-      const cov = ["binance", "bybit", "bitget", "gate"].map((key) => `
+      const cov = ["binance", "bybit", "bitget", "okx", "gate"].map((key) => `
         <span class="cov-chip">${exLogoHtml(key)}${EXCHANGES[key].label}
           <span>현물 <b>${numOrDash(m[`${key}_spot_price_symbols`])}</b></span><span class="sep">/</span><span>선물 <b>${numOrDash(m[`${key}_futures_price_symbols`])}</b></span>
         </span>`).join("");

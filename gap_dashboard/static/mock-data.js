@@ -87,7 +87,7 @@
   const EX_ORDER = ["binance", "bybit", "bitget", "okx", "gate"];
   const EX_CODE = { binance: "B", bybit: "Y", bitget: "G", okx: "O", gate: "T" };
   const EX_LABEL = { binance: "Binance", bybit: "Bybit", bitget: "Bitget", okx: "OKX", gate: "Gate.io" };
-  const COMPARE_EX = ["binance", "bybit", "bitget", "gate"]; // 서버 비교 대상과 동일 (OKX는 기준가 소스로만 사용)
+  const COMPARE_EX = ["binance", "bybit", "bitget", "okx", "gate"]; // 서버 비교 대상과 동일
 
   function exSymbol(ex, base, market) {
     if (ex === "okx") return market === "spot" ? `${base}-USDT` : `${base}-USDT-SWAP`;
@@ -239,7 +239,7 @@
       [["spot", spotCodes, 0.03], ["futures", futCodes, 0.09]].forEach(([market, codes, spread]) => {
         COMPARE_EX.forEach((ex, i) => {
           if (!codes.includes(EX_CODE[ex])) return;
-          const refX = c.refUsdt * (1 + (market === "futures" ? 0.0004 : 0) + ((i - 1.5) * spread) / 100);
+          const refX = c.refUsdt * (1 + (market === "futures" ? 0.0004 : 0) + ((i - (COMPARE_EX.length - 1) / 2) * spread) / 100);
           const upU = up / usdtKrw;
           const bhU = bh / usdtKrw;
           const upG = ((upU - refX) / refX) * 100;
@@ -307,6 +307,10 @@
         bitget_futures_price_symbols: 538,
         bitget_spot_compared: perEx.bitget_spot.length,
         bitget_futures_compared: perEx.bitget_futures.length,
+        okx_spot_price_symbols: 406,
+        okx_futures_price_symbols: 477,
+        okx_spot_compared: perEx.okx_spot.length,
+        okx_futures_compared: perEx.okx_futures.length,
         gate_spot_price_symbols: 2310,
         gate_futures_price_symbols: 610,
         gate_spot_compared: perEx.gate_spot.length,
@@ -321,8 +325,8 @@
         bybit_linear_registry: regF(512),
         bitget_spot_registry: reg(804),
         bitget_futures_registry: regF(538),
-        okx_spot_registry: reg(301),
-        okx_futures_registry: regF(254),
+        okx_spot_registry: reg(406),
+        okx_futures_registry: regF(477),
         gate_spot_registry: reg(2310),
         gate_futures_registry: regF(610),
         kp_available: gaps.filter((r) => r.kp_upbit != null).length,
@@ -340,6 +344,8 @@
       bybit_futures_comparisons: perEx.bybit_futures,
       bitget_spot_comparisons: perEx.bitget_spot,
       bitget_futures_comparisons: perEx.bitget_futures,
+      okx_spot_comparisons: perEx.okx_spot,
+      okx_futures_comparisons: perEx.okx_futures,
       gate_spot_comparisons: perEx.gate_spot,
       gate_futures_comparisons: perEx.gate_futures,
       wallet_fully_blocked: gaps.filter((r) => deadOn(r.upbit_wallet) || deadOn(r.bithumb_wallet)),
