@@ -2348,6 +2348,7 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         market="spot",
         symbol_key="gate_spot_symbol",
         symbol_by_base=_GATE_SPOT_USDT_SYMBOL_BY_BASE,
+        symbol_format="{base}_USDT",
     )
     gate_futures_rows = _build_exchange_comparison_rows(
         upbit,
@@ -2359,6 +2360,7 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         market="futures",
         symbol_key="gate_futures_symbol",
         symbol_by_base=_GATE_USDT_PERP_SYMBOL_BY_BASE,
+        symbol_format="{base}_USDT",
     )
     spot_comparison_rows = sorted(
         [*binance_spot_rows, *bybit_spot_rows, *bitget_spot_rows, *okx_spot_rows, *gate_spot_rows],

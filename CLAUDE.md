@@ -52,7 +52,7 @@ The entire backend is in one file organized as follows:
 
 1. **Exchange Symbol Registries** (lines 60-107): Global frozensets and dicts that map Korean exchange symbols to international exchange symbols. Populated once at startup via `_load_exchange_registries_at_startup()`.
 
-2. **WebSocket Price Feeds** (multiple tasks): Background asyncio tasks connect to Binance, Bybit, Bitget, and Gate.io WebSocket streams to maintain real-time USDT prices. These run continuously and update global price dictionaries protected by locks.
+2. **WebSocket Price Feeds** (multiple tasks): Background asyncio tasks connect to Binance, Bybit, Bitget, OKX, and Gate.io WebSocket streams (public, no API keys) to maintain real-time USDT prices. OKX uses string `"ping"`/`"pong"` keepalive and reconnects if no reply arrives. These run continuously and update global price dictionaries protected by locks.
 
 3. **Authentication Helpers** (lines 172-227): JWT HS256 token generation for Upbit/Bithumb API authentication (implemented without PyJWT dependency).
 
@@ -67,7 +67,7 @@ The entire backend is in one file organized as follows:
    - Fetches wallet status if API keys are configured
    - Reads real-time USDT prices from WebSocket-maintained dictionaries
    - Computes domestic gaps (Upbit vs Bithumb in KRW)
-   - Computes international comparisons (Korean exchanges vs Binance/Bybit/Bitget/Gate.io in USDT)
+   - Computes international comparisons (Korean exchanges vs Binance/Bybit/Bitget/OKX/Gate.io in USDT)
    - Identifies restricted/blocked coins based on deposit/withdrawal availability
    - Merges withdrawal limit data from cache
 
@@ -116,7 +116,7 @@ To add a new international exchange:
 1. Add global frozensets for bases and symbol mappings (e.g., `_NEWEX_SPOT_USDT_BASES`)
 2. Create HTTP fetcher in `_load_exchange_registries_at_startup()` to populate the registry
 3. Add WebSocket listener task (e.g., `_newex_spot_ws_loop()`) and global price dict
-4. Update `_build_exchange_comparison_rows()` or `_merge_gaps()` to include new exchange symbols
+4. Call `_build_exchange_comparison_rows()` for spot/futures (pass `symbol_format` if the exchange's symbol style differs from `BTCUSDT`, e.g. OKX spot `{base}-USDT` / swap `{base}-USDT-SWAP`, Gate.io `{base}_USDT`) and update `_merge_gaps()` to include new exchange symbols
 5. Update frontend (`index.html`) to display new exchange data in modal
 
 ### API Authentication

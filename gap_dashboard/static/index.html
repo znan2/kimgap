@@ -1815,7 +1815,9 @@
         s.onopen = s.onmessage = s.onerror = s.onclose = null;
         try {
           s.close();
-        } catch (_) {}
+        } catch {
+          // 이미 닫혔거나 연결 중인 소켓: 닫기 실패는 무시한다 (핸들러는 위에서 해제됨)
+        }
       }
     }
 
@@ -1925,7 +1927,7 @@
       btnWl.textContent = "요청 중…";
       try {
         await fetch("/api/refresh-limits", { method: "POST" });
-      } catch (e) {
+      } catch {
         btnWl.textContent = "요청 실패";
         btnWl.disabled = false;
         return;

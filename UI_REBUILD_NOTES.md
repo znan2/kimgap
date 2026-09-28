@@ -57,10 +57,28 @@
 
 ### 남은 이슈
 
-- `bitget-logo.png`는 확장자는 PNG지만 실제로는 1024×1024 JPEG다. 표시에는 문제가 없고 이번 범위(바이낸스 로고)가 아니라서 그대로 두었다.
+- ~~`bitget-logo.png`는 확장자만 PNG인 JPEG~~ → 후속 정리 9에서 해소
 - OKX 로고 원본은 흰 배경에 작은 워드마크라 20px 원형에서는 글자가 작게 보인다.
-- `CLAUDE.md`의 아키텍처 설명에는 WebSocket 수신 거래소가 "Binance, Bybit, Bitget, Gate.io"로 적혀 있어 OKX가 빠져 있다. 요청 범위(README) 밖이라 고치지 않았다.
+- ~~`CLAUDE.md`에 OKX 누락~~ → 후속 정리 10에서 해소
 - 김프 기준가(`_fetch_reference_usdt_prices`)는 요청마다 5개 거래소 REST를 호출하는 기존 구조 그대로다. OKX WebSocket 캐시를 여기에 재사용하도록 바꾸면 호출이 줄어들지만, 기존 동작 변경이라 하지 않았다.
+
+### 후속 정리 (9~12, fix-exchanges 브랜치 재생성)
+
+`fix-exchanges`가 `main`에 fast-forward로 합쳐진 뒤 브랜치가 삭제돼 있어서, 같은 이름으로 `main`에서 다시 만들어 작업했다.
+
+| # | 변경 | 결정·이유 | 검증 |
+|---|---|---|---|
+| 9 | `bitget-logo.png`를 실제 PNG로 변환 | 1024×1024 JPEG를 **225×225 RGB PNG**로 줄여 Bybit·OKX·Binance와 형식·크기를 맞췄다(화면 표시는 20px). 56 KB → 19 KB | `file`: `PNG image data, 225 x 225, 8-bit/color RGB`. 데모에서 로고 로드 확인 |
+| 10 | `CLAUDE.md`에 OKX 추가 | WebSocket 수신 거래소 목록, 비교 대상 목록, "새 거래소 추가" 절차(`symbol_format`)를 갱신 | — |
+| 11 | Gate.io 비교 행에 `symbol_format="{base}_USDT"`(현물·무기한) | OKX와 같은 방식. Gate 레지스트리의 현물 `id`와 무기한 `name`이 모두 `BTC_USDT` 형식이다 | 레지스트리가 비어도 `BTC_USDT`로 표시됨(키 미로드 사본으로 확인) |
+| 12 | `disconnectWs`의 `catch (_) {}`를 `catch { /* 이유 */ }`로, `btnWl` 핸들러의 쓰이지 않는 `catch (e)`를 `catch`로 바꿈 | 동작은 같다. catch 변수 생략(ES2019)은 현재 브라우저가 모두 지원한다 | **ESLint 0건**(이전 오류 1·경고 2) |
+
+재검증은 모두 통과했다.
+
+- pyflakes, `py_compile`, `node --check`, `html-validate`
+- 데모 30초 관찰: 다른 출처·WebSocket·`/api`·`/ws` 요청, CSP 위반, 오류가 모두 0건. 로고 5개 로드
+- 운영 모드 회귀 없음
+- 스크린샷 9장 다시 저장. `dist/`는 11개 파일, 241 KiB
 
 ---
 
@@ -171,7 +189,7 @@ python3 -m http.server 8080 --directory dist    # http://127.0.0.1:8080/
 
 ### 남은 이슈
 
-1. **ESLint 오류 1건이 남아 있음(수정 금지 범위).** `disconnectWs()`의 `catch (_) {}`(no-empty)와 `catch (e)` 미사용 경고 2건은 원본 HEAD 코드에 이미 있던 것이고, API 클라이언트 로직은 수정하지 말라는 규칙에 따라 그대로 두었다. 고치려면 `catch { /* 이미 닫힌 소켓 */ }` 정도로 바꾸면 된다. HEAD 원본에도 같은 오류가 있음을 확인했다(아래 검증 참고).
+1. (fix-exchanges 후속 정리 12에서 해소) **ESLint 오류 1건이 남아 있음(수정 금지 범위).** `disconnectWs()`의 `catch (_) {}`(no-empty)와 `catch (e)` 미사용 경고 2건은 원본 HEAD 코드에 이미 있던 것이고, API 클라이언트 로직은 수정하지 말라는 규칙에 따라 그대로 두었다. 고치려면 `catch { /* 이미 닫힌 소켓 */ }` 정도로 바꾸면 된다. HEAD 원본에도 같은 오류가 있음을 확인했다(아래 검증 참고).
 2. **실데이터 모드는 화면으로 확인하지 못했다.** 규칙상 백엔드를 띄우지 않았으므로 실제 페이로드(300개 이상 행, `wallet.mode = off/failed`, `usdt_krw = null`)로 렌더링된 모습은 보지 않았다. 목업 스키마는 `main.py`의 `_compute_gaps_payload()`를 읽고 맞췄다. 일반 모드가 기존대로 `ws://…/ws/gaps`에 연결을 시도하고 목업 스크립트를 로드하지 않는 것만 확인했다.
 3. **저장소에 기존 테스트·린트 설정·빌드 스크립트가 없다.** 아래 검증은 스크래치패드에 임시로 설치한 도구로 실행했다. 저장소에 lint/test 설정은 추가하지 않았다.
 4. `index.html`의 커밋에는 작업 전부터 있던 **사용자의 미커밋 UI 변경**(제목을 "차익 대시보드"로 변경, 디버그 `console.log` 제거)이 함께 들어갔다. 파일을 통째로 다시 썼기 때문에 분리할 수 없었고, 두 변경 모두 새 UI에 유지했다.
