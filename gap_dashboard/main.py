@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import os
 import time
 import uuid
@@ -18,12 +19,14 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 import websockets
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 UPBIT_MARKET = "https://api.upbit.com/v1/market/all"
@@ -114,7 +117,6 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 _ROOT = Path(__file__).resolve().parent.parent
 
 # WebSocket `/ws/gaps` 푸시 주기(초). 환경변수 `GAP_WS_INTERVAL_SEC`로 덮어쓸 수 있음.
-_GAP_WS_INTERVAL_SEC = max(2.0, float(os.getenv("GAP_WS_INTERVAL_SEC", "5")))
 
 
 def _load_env_file(path: Path) -> None:
@@ -139,9 +141,11 @@ def _load_env_file(path: Path) -> None:
         pass
 
 
-_load_env_file(Path.cwd() / ".env")
-_load_env_file(_ROOT / ".env")
-_load_env_file(Path(__file__).resolve().parent / ".env")
+# 테스트는 KIMGAP_SKIP_DOTENV=1로 실행해 실제 키가 든 .env를 읽지 않는다 (tests/conftest.py).
+if os.getenv("KIMGAP_SKIP_DOTENV", "").strip().lower() not in ("1", "true", "yes"):
+    _load_env_file(Path.cwd() / ".env")
+    _load_env_file(_ROOT / ".env")
+    _load_env_file(Path(__file__).resolve().parent / ".env")
 
 UPBIT_ACCESS_KEY = os.getenv("UPBIT_ACCESS_KEY", "")
 UPBIT_SECRET_KEY = os.getenv("UPBIT_SECRET_KEY", "")
@@ -149,6 +153,38 @@ BITHUMB_ACCESS_KEY = os.getenv("BITHUMB_ACCESS_KEY", "")
 BITHUMB_SECRET_KEY = os.getenv("BITHUMB_SECRET_KEY", "")
 
 _LOG = logging.getLogger(__name__)
+
+
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_int(name: str, default: int, minimum: int) -> int:
+    try:
+        value = int(os.getenv(name, "").strip() or default)
+    except ValueError:
+        value = default
+    return max(minimum, value)
+
+
+# ── 공개 서버 보안 설정 (모두 환경변수, 기본값은 안전한 쪽) ─────────────
+# FastAPI 문서(/docs, /redoc, /openapi.json): 기본 끔
+_ENABLE_API_DOCS = _env_flag("ENABLE_API_DOCS")
+# CORS 허용 출처(쉼표 구분). 비우면 CORS 미들웨어 없음(같은 출처만). 설정하면 WebSocket Origin 허용 목록으로도 쓴다
+_CORS_ALLOW_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
+# 관리자 엔드포인트(/api/refresh-limits, /api/limits-status) 토큰. 비우면 두 엔드포인트는 404
+_ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
+_ADMIN_REFRESH_COOLDOWN_SEC = _env_int("ADMIN_REFRESH_COOLDOWN_SEC", 600, 60)
+# IP별 HTTP 요청 속도 제한(분당). /static/* 은 제외
+_RATE_LIMIT_PER_MIN = _env_int("RATE_LIMIT_PER_MIN", 120, 1)
+# WebSocket 동시 연결 상한
+_WS_MAX_CONNECTIONS = _env_int("WS_MAX_CONNECTIONS", 200, 1)
+_WS_MAX_PER_IP = _env_int("WS_MAX_PER_IP", 5, 1)
+# 비공개 API 스케줄러 주기(초): 지갑 입출금 상태 / 출금 가능 정보
+_WALLET_STATUS_INTERVAL_SEC = _env_int("WALLET_STATUS_INTERVAL_SEC", 60, 30)
+_WITHDRAW_INFO_INTERVAL_SEC = _env_int("WITHDRAW_INFO_INTERVAL_SEC", 21600, 600)
+# 공개 시세 페이로드 갱신 주기(초). .env를 읽은 뒤에 읽어야 .env 값이 반영된다
+_GAP_WS_INTERVAL_SEC = max(2.0, float(os.getenv("GAP_WS_INTERVAL_SEC", "5")))
 
 
 @asynccontextmanager
@@ -159,7 +195,9 @@ async def _app_lifespan(_app: FastAPI):
     _start_bitget_ws_tasks()
     _start_okx_ws_tasks()
     _start_gate_ws_tasks()
+    _start_background_schedulers()
     yield
+    await _stop_background_schedulers()
     await _stop_binance_ws_tasks()
     await _stop_bybit_ws_tasks()
     await _stop_bitget_ws_tasks()
@@ -167,13 +205,16 @@ async def _app_lifespan(_app: FastAPI):
     await _stop_gate_ws_tasks()
 
 
-app = FastAPI(title="Upbit–Bithumb gap dashboard", lifespan=_app_lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+app = FastAPI(
+    title="Upbit–Bithumb gap dashboard",
+    lifespan=_app_lifespan,
+    docs_url="/docs" if _ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if _ENABLE_API_DOCS else None,
+    openapi_url="/openapi.json" if _ENABLE_API_DOCS else None,
 )
+# /api/gaps 페이로드는 수 MB라서 압축해 대역폭 소모(요청 증폭)를 줄인다. WebSocket은 uvicorn의 permessage-deflate가 담당
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+# CORS 미들웨어는 속도 제한 미들웨어 뒤(= 바깥쪽)에 등록한다. 그래야 429 응답에도 CORS 헤더가 붙는다 (아래 참고)
 
 
 def _b64url_json(obj: dict[str, Any]) -> str:
@@ -403,6 +444,28 @@ def _safe_float(v: Any) -> float | None:
         return None
 
 
+def _parse_can_withdraw(body: Any) -> bool | None:
+    """`/v1/withdraws/chance` 응답에서 출금 가능 여부만 꺼낸다. 금액(한도·잔여·최소)은 저장하지 않는다."""
+    wl = body.get("withdraw_limit") if isinstance(body, dict) else None
+    v = wl.get("can_withdraw") if isinstance(wl, dict) else None
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str) and v.strip().lower() in ("true", "false"):
+        return v.strip().lower() == "true"
+    return None
+
+
+def _public_error_code(message: str | None) -> str | None:
+    """거래소 오류 원문(URL·상태 문구)을 공개 응답에 싣지 않고 짧은 코드로 바꾼다. 원문은 서버 로그에만 남긴다."""
+    if not message:
+        return None
+    if "401" in message or "403" in message:
+        return "auth_error"
+    if "429" in message:
+        return "rate_limited"
+    return "upstream_error"
+
+
 async def _load_withdraw_limits() -> None:
     global _wl_cache, _wl_ts, _wl_loading, _wl_status, _wl_progress, _wl_last_error, _wl_stats
     if _wl_loading:
@@ -463,13 +526,8 @@ async def _load_withdraw_limits() -> None:
                                 first_error = "업비트 출금조회 권한 없음(403)"
                             break
                         r.raise_for_status()
-                        wl = r.json().get("withdraw_limit", {})
                         result.setdefault(cur, {})
-                        result[cur]["upbit_daily"] = _safe_float(wl.get("daily"))
-                        result[cur]["upbit_remaining_krw"] = _safe_float(
-                            wl.get("remaining_daily_krw")
-                        )
-                        result[cur]["upbit_min"] = _safe_float(wl.get("minimum"))
+                        result[cur]["upbit_can_withdraw"] = _parse_can_withdraw(r.json())
                         _wl_stats["upbit_success"] += 1
                     except Exception as e:
                         if first_error is None:
@@ -519,10 +577,8 @@ async def _load_withdraw_limits() -> None:
                                 first_error = f"빗썸 출금조회 권한 없음({r.status_code})"
                             break
                         r.raise_for_status()
-                        wl = r.json().get("withdraw_limit", {})
                         result.setdefault(cur, {})
-                        result[cur]["bithumb_daily"] = _safe_float(wl.get("daily"))
-                        result[cur]["bithumb_min"] = _safe_float(wl.get("minimum"))
+                        result[cur]["bithumb_can_withdraw"] = _parse_can_withdraw(r.json())
                         _wl_stats["bithumb_success"] += 1
                     except Exception as e:
                         if first_error is None:
@@ -2148,7 +2204,11 @@ def _merge_gaps(
 
 
 async def _compute_gaps_payload() -> dict[str, Any]:
-    """업스트림 조회 후 `/api/gaps`·WebSocket과 동일한 JSON 페이로드 생성. httpx.HTTPError·ValueError는 그대로 전파."""
+    """공개 시세를 조회해 `/api/gaps`·WebSocket과 동일한 JSON 페이로드를 만든다.
+
+    서버 내부 스케줄러(`_payload_refresh_loop`)만 호출한다. 거래소 비공개 API(지갑 상태)는 여기서 부르지 않고
+    `_WALLET_CACHE`(지갑 스케줄러가 채움)를 읽는다. httpx.HTTPError·ValueError는 그대로 전파.
+    """
     t0 = time.time()
     up_wallet_map: dict[str, dict[str, bool]] | None = None
     bh_wallet_map: dict[str, dict[str, bool]] | None = None
@@ -2182,8 +2242,6 @@ async def _compute_gaps_payload() -> dict[str, Any]:
     async with httpx.AsyncClient(headers={"Accept": "application/json"}) as client:
         up_p = asyncio.create_task(_fetch_upbit_krw_prices(client))
         bh_p = asyncio.create_task(_fetch_bithumb_krw_prices(client))
-        up_w = asyncio.create_task(_fetch_upbit_wallet_safe(client))
-        bh_w = asyncio.create_task(_fetch_bithumb_wallet_safe(client))
         ref_p = asyncio.create_task(_fetch_reference_usdt_prices(client))
         binance_p = asyncio.create_task(_binance_price_snapshots(client))
         bybit_p = asyncio.create_task(_bybit_price_snapshots(client))
@@ -2194,8 +2252,6 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         (
             upbit,
             bithumb,
-            (up_raw, up_err),
-            (bh_raw, bh_err),
             (ref_prices, ref_sources, ref_stats),
             (binance_spot_prices, binance_futures_prices),
             (bybit_spot_prices, bybit_linear_prices),
@@ -2206,8 +2262,6 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         ) = await asyncio.gather(
             up_p,
             bh_p,
-            up_w,
-            bh_w,
             ref_p,
             binance_p,
             bybit_p,
@@ -2223,10 +2277,14 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         else:
             binance_prices = {}
 
-        if up_err:
-            wallet_meta["upbit_error"] = up_err
-        if bh_err:
-            wallet_meta["bithumb_error"] = bh_err
+        # 비공개 API 결과는 지갑 스케줄러 캐시에서만 읽는다 (오류는 이미 공개용 코드로 바뀌어 있음)
+        up_raw = _WALLET_CACHE["up_raw"]
+        bh_raw = _WALLET_CACHE["bh_raw"]
+        if _WALLET_CACHE["up_err"]:
+            wallet_meta["upbit_error"] = _WALLET_CACHE["up_err"]
+        if _WALLET_CACHE["bh_err"]:
+            wallet_meta["bithumb_error"] = _WALLET_CACHE["bh_err"]
+        wallet_meta["updated_at_ms"] = int(_WALLET_CACHE["ts"] * 1000) if _WALLET_CACHE["ts"] else None
 
         if up_raw is not None:
             up_wallet_loaded = True
@@ -2379,15 +2437,15 @@ async def _compute_gaps_payload() -> dict[str, Any]:
         reverse=True,
     )
 
-    global _wl_task
-    if not _wl_cache and not _wl_loading and _wl_status == "idle":
-        _wl_task = asyncio.create_task(_load_withdraw_limits())
-
     for row in rows:
         sym = row["symbol"]
         wl = _wl_cache.get(sym)
         if wl:
-            row["withdraw_limits"] = wl
+            # 공개 응답에는 출금 가능 여부(불리언)만 싣는다. 한도·잔여·최소 금액은 수집하지도 않는다
+            row["withdraw_status"] = {
+                "upbit_can_withdraw": wl.get("upbit_can_withdraw"),
+                "bithumb_can_withdraw": wl.get("bithumb_can_withdraw"),
+            }
         if up_wallet_loaded:
             row["upbit_networks"] = up_net_by_sym.get(sym, [])
         if bh_wallet_loaded:
@@ -2492,7 +2550,6 @@ async def _compute_gaps_payload() -> dict[str, Any]:
     kp_available = sum(1 for r in rows if r.get("kp_upbit") is not None)
     meta["kp_available"] = kp_available
     meta["wl_status"] = _wl_status
-    meta["wl_progress"] = _wl_progress
     meta["wl_count"] = len(_wl_cache)
     meta["wl_ts"] = int(_wl_ts * 1000) if _wl_ts else None
     return {
@@ -2518,60 +2575,288 @@ async def _compute_gaps_payload() -> dict[str, Any]:
     }
 
 
-@app.get("/api/gaps")
-async def get_gaps() -> dict[str, Any]:
+# ── 캐시 + 서버 내부 스케줄러 ─────────────────────────────────
+# 요청 수와 거래소 호출 수를 분리한다. 거래소(공개·비공개) 호출은 아래 루프만 하고,
+# /api/gaps 와 /ws/gaps 는 마지막 페이로드 캐시만 돌려준다.
+_WALLET_CACHE: dict[str, Any] = {"up_raw": None, "up_err": None, "bh_raw": None, "bh_err": None, "ts": 0.0}
+_LATEST_PAYLOAD: dict[str, Any] | None = None
+_BACKGROUND_TASKS: list[asyncio.Task[None]] = []
+_WS_POLL_SEC = 1.0
+
+
+async def _refresh_wallet_status() -> None:
+    """업비트·빗썸 `/v1/status/wallet`(비공개 API)을 1회 조회해 캐시한다. 지갑 스케줄러에서만 호출한다."""
+    async with httpx.AsyncClient(headers={"Accept": "application/json"}) as client:
+        (up_raw, up_err), (bh_raw, bh_err) = await asyncio.gather(
+            _fetch_upbit_wallet_safe(client), _fetch_bithumb_wallet_safe(client)
+        )
+    if up_err:
+        _LOG.warning("업비트 지갑 상태 조회 실패: %s", up_err)
+    if bh_err:
+        _LOG.warning("빗썸 지갑 상태 조회 실패: %s", bh_err)
+    _WALLET_CACHE.update(
+        {
+            "up_raw": up_raw,
+            "up_err": _public_error_code(up_err),
+            "bh_raw": bh_raw,
+            "bh_err": _public_error_code(bh_err),
+            "ts": time.time(),
+        }
+    )
+
+
+async def _wallet_status_loop() -> None:
+    while True:
+        try:
+            await asyncio.sleep(_WALLET_STATUS_INTERVAL_SEC)
+            await _refresh_wallet_status()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            _LOG.warning("지갑 상태 스케줄러 오류: %s", e)
+
+
+async def _withdraw_info_loop() -> None:
+    """출금 가능 정보(`/v1/withdraws/chance`, 비공개 API)를 기동 직후 1회, 이후 주기적으로 갱신한다."""
+    while True:
+        try:
+            await _load_withdraw_limits()
+            await asyncio.sleep(_WITHDRAW_INFO_INTERVAL_SEC)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            _LOG.warning("출금 가능 정보 스케줄러 오류: %s", e)
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                break
+
+
+async def _payload_refresh_loop() -> None:
+    global _LATEST_PAYLOAD
+    while True:
+        try:
+            _LATEST_PAYLOAD = await _compute_gaps_payload()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            # 실패하면 마지막 성공 페이로드를 유지한다 (오류 원문은 로그에만)
+            _LOG.warning("페이로드 갱신 실패: %s", e)
+        try:
+            await asyncio.sleep(_GAP_WS_INTERVAL_SEC)
+        except asyncio.CancelledError:
+            break
+
+
+async def _startup_then_loop() -> None:
     try:
-        return await _compute_gaps_payload()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"upstream http error: {e}") from e
-    except ValueError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        await _refresh_wallet_status()
+    except Exception as e:
+        _LOG.warning("초기 지갑 상태 조회 실패: %s", e)
+    await _payload_refresh_loop()
+
+
+def _start_background_schedulers() -> None:
+    global _BACKGROUND_TASKS
+    if _BACKGROUND_TASKS:
+        return
+    _BACKGROUND_TASKS = [
+        asyncio.create_task(_startup_then_loop()),
+        asyncio.create_task(_wallet_status_loop()),
+        asyncio.create_task(_withdraw_info_loop()),
+    ]
+
+
+async def _stop_background_schedulers() -> None:
+    global _BACKGROUND_TASKS
+    tasks = _BACKGROUND_TASKS
+    _BACKGROUND_TASKS = []
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+# ── 요청 속도 제한 · WebSocket 연결 상한 ─────────────────────────
+class _RateLimiter:
+    """IP별 토큰 버킷. 분당 `per_min`개, 순간 최대 `per_min`개까지 허용."""
+
+    def __init__(self, per_min: int, clock=time.monotonic, max_keys: int = 10000) -> None:
+        self.capacity = float(per_min)
+        self.rate = per_min / 60.0
+        self.clock = clock
+        self.max_keys = max_keys
+        self._buckets: dict[str, tuple[float, float]] = {}
+
+    def check(self, key: str) -> float:
+        """허용되면 0, 거부되면 다시 시도까지 남은 초를 돌려준다."""
+        now = self.clock()
+        tokens, last = self._buckets.get(key, (self.capacity, now))
+        tokens = min(self.capacity, tokens + (now - last) * self.rate)
+        if tokens >= 1.0:
+            self._buckets[key] = (tokens - 1.0, now)
+            self._evict_if_needed(now)
+            return 0.0
+        self._buckets[key] = (tokens, now)
+        return (1.0 - tokens) / self.rate
+
+    def _evict_if_needed(self, now: float) -> None:
+        if len(self._buckets) <= self.max_keys:
+            return
+        # 가득 찬(오래 쉰) 버킷부터 지워 메모리 상한을 지킨다
+        full_after = self.capacity / self.rate
+        for k, (_, last) in list(self._buckets.items()):
+            if now - last >= full_after:
+                del self._buckets[k]
+
+
+class _WsSlots:
+    def __init__(self, max_total: int, max_per_ip: int) -> None:
+        self.max_total = max_total
+        self.max_per_ip = max_per_ip
+        self.total = 0
+        self.per_ip: dict[str, int] = defaultdict(int)
+
+    def acquire(self, ip: str) -> bool:
+        if self.total >= self.max_total or self.per_ip[ip] >= self.max_per_ip:
+            return False
+        self.total += 1
+        self.per_ip[ip] += 1
+        return True
+
+    def release(self, ip: str) -> None:
+        self.total = max(0, self.total - 1)
+        self.per_ip[ip] -= 1
+        if self.per_ip[ip] <= 0:
+            del self.per_ip[ip]
+
+
+_RATE_LIMITER = _RateLimiter(_RATE_LIMIT_PER_MIN)
+_WS_SLOTS = _WsSlots(_WS_MAX_CONNECTIONS, _WS_MAX_PER_IP)
+
+
+def _client_ip(conn: Request | WebSocket) -> str:
+    # 리버스 프록시 뒤에서는 uvicorn의 --proxy-headers(기본 켜짐, --forwarded-allow-ips 기본 127.0.0.1)가
+    # X-Forwarded-For로 client를 실제 IP로 바꿔 준다. 헤더를 직접 믿지 않는다.
+    return conn.client.host if conn.client else "unknown"
+
+
+@app.middleware("http")
+async def _rate_limit_middleware(request: Request, call_next):
+    if not request.url.path.startswith("/static/"):
+        retry_after = _RATE_LIMITER.check(_client_ip(request))
+        if retry_after > 0:
+            return JSONResponse(
+                {"detail": "rate_limited"},
+                status_code=429,
+                headers={"Retry-After": str(max(1, math.ceil(retry_after)))},
+            )
+    return await call_next(request)
+
+
+# 속도 제한보다 나중에 등록해 바깥쪽에서 동작하게 한다 → 429에도 CORS 헤더가 붙는다
+if _CORS_ALLOW_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_CORS_ALLOW_ORIGINS,
+        allow_methods=["GET"],
+        allow_headers=[],
+        allow_credentials=False,
+    )
+
+
+def _ws_origin_allowed(websocket: WebSocket) -> bool:
+    """CORS_ALLOW_ORIGINS가 설정돼 있으면 브라우저 WebSocket의 Origin도 그 목록으로 제한한다."""
+    if not _CORS_ALLOW_ORIGINS:
+        return True
+    origin = websocket.headers.get("origin")
+    if not origin:  # 브라우저가 아닌 클라이언트
+        return True
+    parts = urlsplit(origin)
+    return f"{parts.scheme}://{parts.netloc}" in _CORS_ALLOW_ORIGINS
+
+
+# ── 공개 엔드포인트 ─────────────────────────────────────────
+@app.get("/api/gaps")
+async def get_gaps() -> Any:
+    """마지막 캐시 페이로드만 돌려준다 (거래소 호출 없음)."""
+    if _LATEST_PAYLOAD is None:
+        return JSONResponse({"detail": "warming_up"}, status_code=503, headers={"Retry-After": "5"})
+    return _LATEST_PAYLOAD
 
 
 @app.websocket("/ws/gaps")
 async def websocket_gaps(websocket: WebSocket) -> None:
+    """캐시 페이로드가 갱신될 때마다 푸시한다 (거래소 호출 없음).
+
+    연결 시도도 HTTP와 같은 IP별 속도 제한을 받고, 동시 연결 수는 전체·IP별로 제한한다.
+    거부는 accept 전에 닫으므로 uvicorn에서는 HTTP 403으로 보인다.
     """
-    연결 후 `_GAP_WS_INTERVAL_SEC`마다 `/api/gaps`와 동일한 JSON을 푸시.
-    업스트림 오류 시 `type: error` 객체를 한 번 보내고 주기는 유지.
-    """
-    await websocket.accept()
+    ip = _client_ip(websocket)
+    if not _ws_origin_allowed(websocket) or _RATE_LIMITER.check(ip) > 0:
+        await websocket.close(code=1008)  # policy violation
+        return
+    if not _WS_SLOTS.acquire(ip):
+        await websocket.close(code=1013)  # try again later
+        return
+    # uvicorn은 클라이언트가 끊겨도 핸들러를 취소하지 않으므로, 수신 태스크로 끊김을 직접 감지해 슬롯을 바로 반납한다
+    disconnected = asyncio.create_task(_wait_ws_disconnect(websocket))
     try:
-        while True:
-            try:
-                payload = await _compute_gaps_payload()
+        await websocket.accept()
+        last_sent: Any = None
+        while not disconnected.done():
+            payload = _LATEST_PAYLOAD
+            if payload is not None and payload.get("updated_at_ms") != last_sent:
                 await websocket.send_json(payload)
-            except (WebSocketDisconnect, RuntimeError):
-                break
-            except (httpx.HTTPError, ValueError) as e:
-                try:
-                    await websocket.send_json(
-                        {
-                            "type": "error",
-                            "detail": str(e),
-                            "updated_at_ms": int(time.time() * 1000),
-                        }
-                    )
-                except (WebSocketDisconnect, RuntimeError):
-                    break
-            try:
-                await asyncio.sleep(_GAP_WS_INTERVAL_SEC)
-            except asyncio.CancelledError:
-                break
-    except WebSocketDisconnect:
+                last_sent = payload.get("updated_at_ms")
+            await asyncio.wait({disconnected}, timeout=_WS_POLL_SEC)
+    except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
+        pass
+    finally:
+        disconnected.cancel()
+        _WS_SLOTS.release(ip)
+
+
+async def _wait_ws_disconnect(websocket: WebSocket) -> None:
+    try:
+        while (await websocket.receive())["type"] != "websocket.disconnect":
+            pass
+    except (WebSocketDisconnect, RuntimeError):
         pass
 
 
-@app.post("/api/refresh-limits")
-async def refresh_limits() -> dict[str, Any]:
-    global _wl_task
+# ── 관리자 엔드포인트 (ADMIN_TOKEN 미설정 시 404) ─────────────────────
+_LAST_ADMIN_REFRESH_AT: float | None = None
+
+
+def _require_admin(token: str | None) -> None:
+    if not _ADMIN_TOKEN:
+        raise HTTPException(status_code=404, detail="Not Found")
+    if not token:
+        raise HTTPException(status_code=401, detail="admin token required")
+    if not hmac.compare_digest(token.encode("utf-8"), _ADMIN_TOKEN.encode("utf-8")):
+        raise HTTPException(status_code=403, detail="invalid admin token")
+
+
+async def refresh_limits(x_admin_token: str | None = Header(default=None)) -> Any:
+    global _wl_task, _LAST_ADMIN_REFRESH_AT
+    _require_admin(x_admin_token)
     if _wl_loading:
-        return {"status": _wl_status, "progress": _wl_progress, "msg": "이미 로딩 중"}
+        return JSONResponse({"status": "loading"}, status_code=409)
+    now = time.monotonic()
+    if _LAST_ADMIN_REFRESH_AT is not None and now - _LAST_ADMIN_REFRESH_AT < _ADMIN_REFRESH_COOLDOWN_SEC:
+        wait = math.ceil(_ADMIN_REFRESH_COOLDOWN_SEC - (now - _LAST_ADMIN_REFRESH_AT))
+        return JSONResponse({"detail": "cooldown"}, status_code=429, headers={"Retry-After": str(wait)})
+    _LAST_ADMIN_REFRESH_AT = now
     _wl_task = asyncio.create_task(_load_withdraw_limits())
-    return {"status": "started", "msg": "백그라운드 조회 시작"}
+    return {"status": "started"}
 
 
-@app.get("/api/limits-status")
-async def limits_status() -> dict[str, Any]:
+async def limits_status(x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
+    _require_admin(x_admin_token)
     return {
         "status": _wl_status,
         "progress": _wl_progress,
@@ -2581,6 +2866,12 @@ async def limits_status() -> dict[str, Any]:
         "last_error": _wl_last_error,
         "stats": _wl_stats,
     }
+
+
+# ADMIN_TOKEN이 없으면 관리자 경로를 아예 등록하지 않는다 (어떤 메서드로도 404, 존재가 드러나지 않음)
+if _ADMIN_TOKEN:
+    app.add_api_route("/api/refresh-limits", refresh_limits, methods=["POST"], status_code=202)
+    app.add_api_route("/api/limits-status", limits_status, methods=["GET"])
 
 
 @app.get("/")

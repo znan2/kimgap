@@ -1,7 +1,69 @@
-# UI 리빌드 노트 (ui-rebuild → static-demo → fix-exchanges)
+# UI 리빌드 노트 (ui-rebuild → static-demo → fix-exchanges → security-hardening)
 
 기준 문서: `~/portfolio/DESIGN.md` (다크 핀테크 대시보드, 한국식 상승·하락 색, 브랜드 강조색 **민트 `#3ce8a0` 확정**)
 작업일: 2026-09-28
+
+---
+
+## 보안 강화 (security-hardening 브랜치)
+
+공개 저장소 위협 점검(로컬 `PUBLIC_THREAT_REVIEW.md`)에서 남은 항목을 조치했다. 텔레그램 봇 항목(H1, M2, M3)은 봇 코드 삭제로 제외했다.
+
+### 변경 요약
+
+| 요청 | 조치 | 점검 항목 |
+|---|---|---|
+| 1. 비공개 API는 스케줄러만 호출 | `_wallet_status_loop`(지갑 상태, 60초)·`_withdraw_info_loop`(출금 가능 정보, 6시간)·`_payload_refresh_loop`(공개 시세 페이로드, 5초)를 lifespan에서 시작·종료한다. `_compute_gaps_payload`는 비공개 API를 부르지 않고 `_WALLET_CACHE`를 읽는다. `/api/gaps`·`/ws/gaps`는 `_LATEST_PAYLOAD`만 반환한다(준비 전 `503`). 요청이 들어올 때 출금 한도 로딩을 시작하던 코드는 삭제했다 | H2 |
+| 2. refresh-limits 보호 | `ADMIN_TOKEN` 미설정 시 404. 설정 시 `X-Admin-Token`(상수 시간 비교) + 쿨다운(`ADMIN_REFRESH_COOLDOWN_SEC`, 최소 60초, `429`+`Retry-After`). 진행 중이면 409. `/api/limits-status`도 관리자 전용 | H2 |
+| 3. 출금 한도 금액 제거 | `withdraws/chance`에서 `can_withdraw` 불리언만 파싱·저장한다. 공개 필드는 `withdraw_status {upbit_can_withdraw, bithumb_can_withdraw}`이고, 기존 `withdraw_limits`(금액)와 `wl_progress`는 삭제했다. 지갑 오류 원문 대신 `auth_error`/`rate_limited`/`upstream_error` 코드를 쓴다 | M1, L3 |
+| 4. 문서 기본 끔 | `docs_url`·`redoc_url`·`openapi_url`은 `ENABLE_API_DOCS=1`일 때만 설정 | L1 |
+| 5. CORS | `CORS_ALLOW_ORIGINS` 설정 시에만 미들웨어(GET만, 헤더·자격 증명 불허). 기본은 미들웨어 없음(같은 출처만) | L2 |
+| 6. 속도 제한·WS 상한 | IP별 토큰 버킷(`RATE_LIMIT_PER_MIN`, `/static/*` 제외, WebSocket 연결 시도 포함), WebSocket 전체·IP별 슬롯(`WS_MAX_CONNECTIONS`/`WS_MAX_PER_IP`, accept 전 거부 → uvicorn에서 HTTP 403). 수신 태스크로 끊김을 감지해 슬롯을 즉시 반납 | H2, L4 |
+| (추가) 응답 압축 | `GZipMiddleware(minimum_size=1024)`: 실측 `/api/gaps` 2,387,166 → 296,424 bytes | H2 |
+| 7. 테스트 | `tests/` 27개(pytest), `requirements-dev.txt`, `pytest.ini` | — |
+| 8. 문서 | README "공개 서버 운영" 절과 "테스트" 절, `.env.example` 변수 9개(이름만), `CLAUDE.md` 구조 설명 | — |
+| 프론트엔드 | 공개 페이지의 "출금한도" 버튼과 관련 JS 삭제(관리자 전용이 됨). 모달은 금액 대신 "출금 가능 여부"(가능·불가·알 수 없음 표시)를 보여준다. 오류 코드는 한글 라벨로 표시. 폰트 subset 재생성 | — |
+
+### 결정과 이유
+
+| # | 결정 | 이유 |
+|---|---|---|
+| S1 | refresh-limits는 **제거하지 않고 관리자 전용**으로 남겼다(토큰 미설정 시 404로 사실상 제거 상태) | 요청의 두 선택지를 합쳤다. 기본은 외부에서 존재 자체가 보이지 않고, 운영자가 필요할 때만 토큰으로 켠다 |
+| S2 | 공개 필드 이름을 `withdraw_limits`에서 `withdraw_status`로 바꿨다 | 금액이 없다는 것을 이름으로 드러내고, 옛 클라이언트가 금액 필드를 기대하지 않게 한다 |
+| S3 | 속도 제한·WS 상한은 새 의존성 없이 직접 구현했다(slowapi 미사용) | 로직이 짧고, 의존성·공급망을 늘리지 않는다. 클라이언트 IP는 uvicorn의 `--proxy-headers`(기본 `127.0.0.1` 신뢰)에 맡기고 `X-Forwarded-For`를 직접 믿지 않는다 |
+| S4 | WebSocket Origin 검사는 `CORS_ALLOW_ORIGINS`가 설정됐을 때만 한다 | 설정이 없을 때 Host 헤더와 비교하면, 프록시가 Host를 바꾸는 환경(nginx 기본값)에서 정상 사용자까지 막을 수 있다 |
+| S5 | 테스트용 `KIMGAP_SKIP_DOTENV=1` 스위치를 넣었다 | 테스트가 실제 키가 든 `.env`를 읽지 않게 한다. 테스트는 httpx 비동기 요청과 `websockets.connect`도 모두 막는다 |
+| S6 | 페이로드 계산이 실패하면 마지막 성공 페이로드를 유지한다 | 일시적 거래소 오류로 화면이 비지 않게 하고, 오류 원문은 로그에만 남긴다 |
+| S7 | GZip을 추가했다(요청 목록 밖) | 실측 결과 페이로드가 2.4MB라, 연결 상한만으로는 대역폭 증폭을 충분히 막지 못한다. 변경 위험이 낮다 |
+
+### 검증 결과
+
+| 검사 | 결과 |
+|---|---|
+| pytest (새로 설치한 venv: FastAPI 0.141 / Starlette 1.7) | ✅ 30 passed (리뷰 반영 후) |
+| pytest (`.venv`와 같은 버전: FastAPI 0.135.3 / Starlette 1.0.0) | ✅ 30 passed |
+| 코드 리뷰(서브에이전트) | 중간 2건 반영: WebSocket 연결에 속도 제한이 없던 문제, 실제 uvicorn에서 끊긴 연결이 슬롯을 계속 잡던 문제. 낮음 중 5건 반영: `.env`의 `GAP_WS_INTERVAL_SEC` 무시 버그, 429에 CORS 헤더 누락, 토큰 미설정 시 GET이 405로 경로 존재가 드러나던 점, close 코드 문서, CORS 자기 출처 안내. 나머지는 아래 남은 이슈에 기록 |
+| 수정 전 `main` 코드에 같은 테스트 | 26개 중 23개 실패(통과 3개는 문서 켜기 테스트): 테스트가 보안 동작을 실제로 검증함을 확인 |
+| 실서버 스모크(uvicorn, `KIMGAP_SKIP_DOTENV=1`로 키 미로드, 공개 API만) | ✅ 첫 페이로드 준비, 금액 필드 없음, 문서 3종 404, 관리자 2종 404, 외부 출처 CORS 헤더 없음, IP당 WS 3번째 거부(HTTP 403), WS 갱신 푸시, 분당 30 제한에서 40연속 중 24건 429, gzip 적용. 서버 오류 로그 0건 |
+| 정적 검사 | ✅ pyflakes(main, scripts, tests), py_compile, node --check, html-validate, **ESLint 0건** |
+| 데모 30초 관찰 | ✅ 다른 출처·WS·`/api`·`/ws` 요청 0, CSP 위반 0, 오류 0, 출금 버튼 없음, 모달 출금 표시에 숫자 없음. 스크린샷 9장 재촬영 |
+| 운영 모드 회귀(정적 배치) | ✅ `live`는 `/ws/gaps` 연결 시도, `?mock=1` 정상 |
+
+### 남은 이슈
+
+- 페이로드가 약 2.4MB(압축 시 약 0.3MB)다. 현물·선물 합계 목록과 거래소별 목록이 같은 행을 두 번 싣는다. 프론트엔드는 합계 목록만 쓰므로, 거래소별 목록을 빼면 절반 가까이 줄일 수 있다(응답 스키마 변경이라 이번에는 하지 않았다).
+- 보안 헤더(CSP, HSTS, X-Frame-Options)는 운영 서버 앱에는 아직 없다(정적 데모는 `_headers`로 적용됨). 리버스 프록시에서 넣거나 미들웨어를 추가해야 한다.
+- 속도 제한·WS 상한은 프로세스 메모리 기준이다. 워커를 여러 개 띄우면 워커마다 따로 센다(현재 배포는 `--workers 1`).
+- 리뷰에서 나온 낮음 항목 중 이번에 고치지 않은 것(사용자 요청으로 범위를 줄임):
+  - 속도 제한기 키 수가 활성 IP가 많으면 상한(10,000)을 넘을 수 있다.
+  - `ADMIN_TOKEN`은 ASCII만 동작한다(README에 명시).
+  - 종료 시 관리자가 시작한 갱신 태스크는 취소하지 않는다.
+  - 첫 페이로드가 초기 지갑 조회(최대 20초)를 기다린다.
+  - 페이로드 계산이 계속 실패해도 화면에 "지연" 표시가 없다.
+  - 지갑 조회가 한 번 실패하면 다음 주기까지 입출금 정보가 비어 보인다.
+  - WebSocket 클라이언트마다 JSON을 다시 직렬화한다.
+  - GZip이 이미 압축된 정적 파일(woff2)도 다시 압축한다.
+- `withdraws/chance`의 `can_withdraw` 필드는 업비트 문서 기준이다. 빗썸 응답에서 이 필드가 없으면 값은 `null`(알 수 없음)로 표시된다. 실키로는 확인하지 못했다.
 
 ---
 

@@ -3,7 +3,7 @@
  *
  * - /ws/gaps 페이로드와 같은 모양의 JSON을 브라우저 안에서 만든다. 서버·거래소 API를 호출하지 않는다.
  * - 가격·김프는 가상의 값이다. 실제 시세, 잔고, 지갑 주소, 출금 한도 금액은 넣지 않는다
- *   (withdraw_limits 필드 자체를 만들지 않는다).
+ *   (출금 정보 필드 withdraw_status 자체를 만들지 않는다).
  * - 스키마 기준: gap_dashboard/main.py 의 _compute_gaps_payload().
  */
 (function () {
@@ -331,7 +331,6 @@
         gate_futures_registry: regF(610),
         kp_available: gaps.filter((r) => r.kp_upbit != null).length,
         wl_status: WL.status,
-        wl_progress: WL.progress,
         wl_count: WL.count,
         wl_ts: WL.ts,
       },

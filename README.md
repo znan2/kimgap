@@ -36,12 +36,36 @@ uvicorn gap_dashboard.main:app --host 127.0.0.1 --port 8000
 
 - 브라우저에서는 `http://127.0.0.1:8000/`(루트)로 엽니다. 자산 경로가 상대 경로(`static/…`)라서 `/static/index.html`로 열면 폰트·로고가 404가 됩니다.
 - 해외 5개 거래소는 모두 **공개 API만** 씁니다(API 키 없음). 기동 시 REST로 USDT 현물·무기한 심볼 목록을 받고, 티커 WebSocket으로 가격을 유지하며, 부족하면 REST 티커로 채웁니다.
-- API 키가 없어도 시세·김프는 동작합니다. 키가 있으면 입출금 상태와 출금 한도를 함께 보여줍니다.
+- API 키가 없어도 시세·김프는 동작합니다. 키가 있으면 네트워크별 입출금 상태와 코인별 출금 가능 여부를 함께 보여줍니다(출금 한도 금액은 수집·공개하지 않음).
 - 키는 **조회 권한만** 주고(주문·출금·입금 권한은 끔), 허용 IP를 실행 서버로 제한하세요. 코드는 `GET /v1/status/wallet`, `GET /v1/withdraws/chance`만 호출합니다.
-- 공개 서버로 운영하려면 먼저 다음을 적용하세요.
-  - `POST /api/refresh-limits`에 인증을 추가한다(현재 인증 없음).
-  - FastAPI `/docs`, `/openapi.json`을 끈다.
-  - 리버스 프록시에 요청 속도와 연결 수 제한을 둔다.
+- 공개 서버로 운영하려면 아래 "공개 서버 운영" 절을 확인하세요.
+
+## 공개 서버 운영
+
+아래 보호 장치는 코드에 적용돼 있고, 별도 설정 없이도 안전한 쪽이 기본값입니다. 변수 이름은 `.env.example`에 있습니다.
+
+| 항목 | 적용 내용 | 설정(환경변수, 기본값) |
+|---|---|---|
+| 거래소 호출과 요청 분리 | 거래소 API는 서버 내부 스케줄러만 호출합니다. `/api/gaps`와 `/ws/gaps`는 마지막 캐시만 반환하므로, 요청이 몇 번 오든 거래소 호출 수는 늘지 않습니다. 첫 페이로드가 준비되기 전에는 `/api/gaps`가 `503`을 돌려줍니다 | 공개 시세 `GAP_WS_INTERVAL_SEC`(5초), 지갑 입출금 상태(비공개) `WALLET_STATUS_INTERVAL_SEC`(60초, 최소 30), 출금 가능 정보(비공개) `WITHDRAW_INFO_INTERVAL_SEC`(21600초, 최소 600) |
+| 관리자 엔드포인트 | `POST /api/refresh-limits`(출금 가능 정보 즉시 갱신)와 `GET /api/limits-status`는 `ADMIN_TOKEN`을 설정하지 않으면 경로가 등록되지 않아 **어떤 메서드로도 404**입니다. 토큰은 ASCII 문자로 정하세요. 설정하면 `X-Admin-Token` 헤더가 필요하고(없으면 401, 틀리면 403), 갱신은 쿨다운이 지나야 다시 할 수 있습니다(`429` + `Retry-After`). 공개 페이지에는 버튼이 없습니다 | `ADMIN_TOKEN`(비움), `ADMIN_REFRESH_COOLDOWN_SEC`(600초, 최소 60) |
+| 출금 정보 공개 범위 | 공개 응답에는 코인별 `withdraw_status`의 출금 가능 여부(`upbit_can_withdraw`, `bithumb_can_withdraw`, 불리언)만 들어 있습니다. 한도·잔여·최소 금액은 서버가 수집하지도 않습니다. 거래소 오류 원문 대신 `auth_error`, `rate_limited`, `upstream_error` 코드만 공개합니다 | — |
+| API 문서 | `/docs`, `/redoc`, `/openapi.json`은 기본으로 꺼져 있습니다 | `ENABLE_API_DOCS=1`일 때만 켜짐 |
+| CORS | 기본은 CORS 헤더 없음(같은 출처만)입니다. 설정한 출처에만 GET을 허용하고, 자격 증명은 허용하지 않습니다. 설정하면 브라우저 WebSocket의 `Origin`도 같은 목록으로 제한하므로 **대시보드 자신의 출처도 목록에 넣어야** 합니다 | `CORS_ALLOW_ORIGINS`(쉼표 구분, 예: `https://example.com`) |
+| 요청 속도 제한 | IP별 분당 요청 수를 넘으면 `429`와 `Retry-After`를 돌려줍니다. WebSocket 연결 시도도 같은 한도에 포함됩니다. `/static/*`은 제외합니다 | `RATE_LIMIT_PER_MIN`(120) |
+| WebSocket 연결 상한 | 전체와 IP별 동시 연결 수를 넘으면 연결을 거부합니다(연결 수락 전 거부라 클라이언트에는 HTTP 403으로 보임). 끊긴 연결의 자리는 바로 반납됩니다 | `WS_MAX_CONNECTIONS`(200), `WS_MAX_PER_IP`(5) |
+| 응답 압축 | 1KB 이상 HTTP 응답은 gzip으로 보냅니다(`/api/gaps` 약 2.4MB → 약 0.3MB). WebSocket은 uvicorn의 permessage-deflate가 압축합니다 | — |
+
+- **리버스 프록시 뒤에서 실행할 때**: 속도 제한과 연결 상한은 클라이언트 IP 기준입니다. uvicorn은 기본적으로 `127.0.0.1`에서 온 `X-Forwarded-For`를 신뢰해 실제 IP로 바꿉니다(`--proxy-headers`, `--forwarded-allow-ips`). 프록시가 다른 주소에 있으면 `--forwarded-allow-ips`에 그 주소를 지정하세요. 지정하지 않으면 모든 사용자가 프록시 IP 하나로 묶여 제한됩니다.
+- **거래소 키**: 조회 권한만 주고, 허용 IP를 서버로 제한하세요.
+
+## 테스트
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+테스트는 `.env`를 읽지 않고(`KIMGAP_SKIP_DOTENV=1`), 거래소로 나가는 네트워크 호출을 모두 막은 상태에서 실행됩니다.
 
 ### `data/*.json` 스냅샷이 필요한가요?
 

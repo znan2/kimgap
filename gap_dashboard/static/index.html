@@ -854,7 +854,6 @@
       .search input { font-size: 16px; }
       .select { justify-content: space-between; }
       .select select { flex: 1; min-width: 0; text-align: right; }
-      #btnWl { grid-column: 1 / -1; }
       .meta-row { padding: 0 var(--space-4) var(--space-3); }
       .tbl .c-rank { display: none; }
       .tbl th:first-child, .tbl td:first-child { padding-left: var(--space-3); }
@@ -932,9 +931,7 @@
               <option value="kp_bithumb">김프(빗썸)</option>
               <option value="rp_bithumb">역프(빗썸)</option>
             </select>
-          </label>
-          <button type="button" id="btnWl" class="btn btn-secondary" title="출금 일일한도 캐시 수동 새로고침">출금한도 새로고침</button>
-        </div>
+          </label>        </div>
       </div>
       <div class="meta-row" id="meta"></div>
       <div id="table-wrap" class="table-wrap">
@@ -1010,7 +1007,6 @@
     const filterPauseEl = document.getElementById("filterPause");
     const filterPauseLabel = document.getElementById("filterPauseLabel");
     const sortByEl = document.getElementById("sortBy");
-    const btnWl = document.getElementById("btnWl");
     const coinModal = document.getElementById("coin-modal");
     const coinModalTitle = document.getElementById("coin-modal-title");
     const coinModalSub = document.getElementById("coin-modal-sub");
@@ -1078,13 +1074,6 @@
       const d = document.createElement("div");
       d.textContent = String(str);
       return d.innerHTML.replace(/"/g, "&quot;");
-    }
-
-    function formatNumFull(v) {
-      if (v == null || v === "") return "—";
-      const n = Number(v);
-      if (!Number.isFinite(n)) return "—";
-      return n.toLocaleString("ko-KR", { maximumFractionDigits: 18 });
     }
 
     /** 정렬용 (HEAD와 동일 동작 유지: null은 Number(null) = 0으로 취급) */
@@ -1269,18 +1258,11 @@
       coinModalSub.innerHTML = row.gap_pct != null
         ? `업비트 · 빗썸 갭 <b>${Number(row.gap_pct).toFixed(2)}%</b>`
         : "";
-      const wl = row.withdraw_limits || {};
-
-      const upLimits = `
+      // 공개 응답에는 출금 가능 여부(불리언)만 있다. 한도·잔여 금액은 서버가 수집하지 않는다
+      const ws = row.withdraw_status || {};
+      const canWithdrawHtml = (v) => `
         <dl class="m-dl">
-          <dt>일일 한도 (코인)</dt><dd>${formatNumFull(wl.upbit_daily)}</dd>
-          <dt>일일 잔여 (원화 환산)</dt><dd>${formatNumFull(wl.upbit_remaining_krw)}</dd>
-          <dt>최소 출금</dt><dd>${formatNumFull(wl.upbit_min)}</dd>
-        </dl>`;
-      const bhLimits = `
-        <dl class="m-dl">
-          <dt>일일 한도 (코인)</dt><dd>${formatNumFull(wl.bithumb_daily)}</dd>
-          <dt>최소 출금</dt><dd>${formatNumFull(wl.bithumb_min)}</dd>
+          <dt>출금 가능</dt><dd>${dwItem(v === true ? true : v === false ? false : null, "출", "출금")}</dd>
         </dl>`;
 
       let netSection = "";
@@ -1313,13 +1295,13 @@
         ${modalStatsHtml(row)}
         ${netSection}
         <div class="m-section">
-          <h4>일일 출금 한도 (본인 계정)</h4>
+          <h4>출금 가능 여부 (본인 계정)</h4>
           <p class="m-hint">${MOCK_MODE
-            ? "데모 데이터에는 출금 한도를 넣지 않았습니다. 운영 모드에서는 본인 API 키로 조회한 값이 표시됩니다."
-            : "본인 API 키로 조회한 값을 서버에 캐시한 것입니다. 출금조회 권한이 없거나 아직 로딩 중이면 — 로 보입니다."}</p>
+            ? "데모 데이터에는 계정 기준 출금 정보를 넣지 않았습니다. 운영 모드에서는 서버가 주기적으로 조회한 출금 가능 여부만 표시합니다."
+            : "서버가 주기적으로 조회한 출금 가능 여부입니다. 한도·잔여 금액은 공개하지 않습니다. 아직 조회 전이거나 권한이 없으면 점선으로 표시됩니다."}</p>
           <div class="m-grid-2">
-            <div class="m-box"><div class="m-box-head">업비트</div>${upLimits}</div>
-            <div class="m-box"><div class="m-box-head">빗썸</div>${bhLimits}</div>
+            <div class="m-box"><div class="m-box-head">업비트</div>${canWithdrawHtml(ws.upbit_can_withdraw)}</div>
+            <div class="m-box"><div class="m-box-head">빗썸</div>${canWithdrawHtml(ws.bithumb_can_withdraw)}</div>
           </div>
         </div>
         <div class="m-section">
@@ -1626,6 +1608,12 @@
       return m[w.mode] || "";
     }
 
+    /** 서버는 거래소 오류 원문 대신 짧은 코드만 보낸다 */
+    function walletErrorLabel(code) {
+      const m = { auth_error: "인증 실패", rate_limited: "요청 제한", upstream_error: "거래소 응답 오류" };
+      return m[code] || "오류";
+    }
+
     function renderRestrictedSection(list) {
       const w = (lastPayload && lastPayload.meta && lastPayload.meta.wallet) || {};
       const fullRest = (lastPayload && lastPayload.wallet_restricted) || [];
@@ -1771,21 +1759,20 @@
     function renderMeta(m) {
       const w = m.wallet || {};
       const errBits = [];
-      if (w.upbit_error) errBits.push(`업 ${w.upbit_error.slice(0, 48)}`);
-      if (w.bithumb_error) errBits.push(`빗 ${w.bithumb_error.slice(0, 48)}`);
+      if (w.upbit_error) errBits.push(`업비트 ${walletErrorLabel(w.upbit_error)}`);
+      if (w.bithumb_error) errBits.push(`빗썸 ${walletErrorLabel(w.bithumb_error)}`);
       const wl = walletModeLabel(w);
-      const errTitle = errBits.join(" | ").replace(/"/g, "'");
+      const errTitle = errBits.join(" | ");
       const wls = m.wl_status || "idle";
       const wlc = m.wl_count || 0;
       const walletDot = w.mode === "on" ? "ok" : w.mode ? "warn" : "";
       let wlSpan = "";
       if (wls === "done" && wlc > 0) {
-        wlSpan = `<span title="출금 한도 API 캐시">출금 한도 캐시 <strong>${wlc}</strong>종</span>`;
+        wlSpan = `<span title="서버가 주기적으로 조회한 출금 가능 여부">출금 가능 정보 <strong>${wlc}</strong>종</span>`;
       } else if (wls === "loading") {
-        wlSpan = `<span>출금 한도 로딩 중</span>`;
+        wlSpan = `<span>출금 가능 정보 조회 중</span>`;
       } else if (wls === "error") {
-        const wp = String(m.wl_progress || "").slice(0, 40);
-        wlSpan = `<span class="warn">출금 한도 오류${wp ? " " + escHtml(wp) : ""}</span>`;
+        wlSpan = `<span class="warn">출금 가능 정보 조회 실패</span>`;
       }
       metaEl.innerHTML = `
           ${wl ? `<span title="${escHtml(errTitle)}"><span class="meta-dot ${walletDot}" aria-hidden="true"></span><strong>${wl}</strong></span>` : ""}
@@ -1828,8 +1815,6 @@
       const m = data.meta || {};
       renderSummary(data);
       renderMeta(m);
-      updateWlButton(m);
-      if (MOCK_MODE) lockWlButtonForMock();
       refreshViews();
     }
 
@@ -1879,17 +1864,9 @@
       connectWs();
     }
 
-    /** 데모·목업에는 출금 한도 데이터가 없으므로 버튼을 끄고 이유를 보여준다 (실제 /api 요청 경로 차단 겸용) */
-    function lockWlButtonForMock() {
-      btnWl.disabled = true;
-      btnWl.textContent = "출금한도 · 데모 제외";
-      btnWl.title = "데모 데이터에는 출금 한도가 없습니다";
-    }
-
     /** 데모·목업 부트스트랩: WebSocket 대신 mock-data.js 페이로드를 타이머로 주기 주입해 실시간 갱신을 흉내 낸다 */
     function startMock() {
       setConnBadge("wait", "데모 데이터 로드 중…");
-      lockWlButtonForMock();
       document.getElementById("demoNote").hidden = false;
       document.getElementById("liveTransportNote").hidden = true;
       const s = document.createElement("script");
@@ -1904,40 +1881,7 @@
       document.head.appendChild(s);
     }
 
-    function updateWlButton(m) {
-      const s = m.wl_status || "idle";
-      const p = m.wl_progress || "";
-      if (s === "done") {
-        btnWl.textContent = "출금한도 새로고침";
-        btnWl.disabled = false;
-      } else if (s === "loading") {
-        btnWl.textContent = p ? `로딩… ${p}` : "로딩 중…";
-        btnWl.disabled = true;
-      } else if (s === "error") {
-        btnWl.textContent = "출금한도 재시도";
-        btnWl.disabled = false;
-      } else {
-        btnWl.textContent = "출금한도 조회";
-        btnWl.disabled = false;
-      }
-    }
-
-    btnWl.addEventListener("click", async () => {
-      btnWl.disabled = true;
-      btnWl.textContent = "요청 중…";
-      try {
-        await fetch("/api/refresh-limits", { method: "POST" });
-      } catch {
-        btnWl.textContent = "요청 실패";
-        btnWl.disabled = false;
-        return;
-      }
-      if (lastPayload && lastPayload.meta) updateWlButton(lastPayload.meta);
-      else {
-        btnWl.textContent = "출금한도 새로고침";
-        btnWl.disabled = false;
-      }
-    });
+    // 출금 가능 정보 수동 갱신(POST /api/refresh-limits)은 관리자 전용(X-Admin-Token)이라 공개 페이지에 버튼을 두지 않는다
     filterPauseEl.addEventListener("change", () => refreshViews());
     sortByEl.addEventListener("change", () => refreshViews());
     tickerSearchEl.addEventListener("input", () => refreshViews());

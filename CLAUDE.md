@@ -58,25 +58,26 @@ The entire backend is in one file organized as follows:
 
 4. **Wallet Status Processing** (lines 230-372): Functions to parse deposit/withdrawal availability from exchange wallet APIs, aggregate by currency, and handle network-level details.
 
-5. **Withdrawal Limits Cache** (lines 374-600): Background task system (`_load_withdraw_limits()`) that queries withdrawal limits for each coin from both exchanges. This is rate-limited and runs on-demand via `/api/refresh-limits` endpoint.
+5. **Withdrawal Info Cache**: `_load_withdraw_limits()` queries `/v1/withdraws/chance` for each coin and keeps **only `can_withdraw` booleans** (no limit/remaining/minimum amounts). It runs from the internal scheduler (`_withdraw_info_loop`, `WITHDRAW_INFO_INTERVAL_SEC`) or the admin-only `POST /api/refresh-limits`.
 
 6. **Kimchi Premium Calculation** (around line 1700+): Functions to calculate percentage differences between Korean exchange KRW prices (converted to USDT using Upbit's KRW-USDT rate) and international exchange USDT prices.
 
-7. **Gap Computation Engine** (`_compute_gaps_payload()` around line 1982): The main orchestration function that:
+7. **Gap Computation Engine** (`_compute_gaps_payload()`): Called **only by the internal scheduler** (`_payload_refresh_loop`), never per request. It:
    - Fetches current prices from Upbit and Bithumb public APIs
-   - Fetches wallet status if API keys are configured
+   - Reads wallet status from `_WALLET_CACHE` (filled by `_wallet_status_loop`; private APIs are never called here)
    - Reads real-time USDT prices from WebSocket-maintained dictionaries
    - Computes domestic gaps (Upbit vs Bithumb in KRW)
    - Computes international comparisons (Korean exchanges vs Binance/Bybit/Bitget/OKX/Gate.io in USDT)
    - Identifies restricted/blocked coins based on deposit/withdrawal availability
-   - Merges withdrawal limit data from cache
+   - Merges `withdraw_status` (`upbit_can_withdraw` / `bithumb_can_withdraw`) from the withdrawal info cache
 
-8. **API Endpoints**:
-   - `GET /api/gaps` (line 2310): HTTP endpoint returning current snapshot
-   - `WebSocket /ws/gaps` (line 2320): Streams periodic updates to clients
-   - `POST /api/refresh-limits` (line 2353): Triggers background withdrawal limit refresh
-   - `GET /api/limits-status` (line 2362): Returns withdrawal limit loading status
-   - `GET /` (line 2375): Serves `static/index.html`
+8. **API Endpoints** (public ones return the cached payload only; exchange call count is independent of request count):
+   - `GET /api/gaps`: latest cached payload (`503` until the first one is ready)
+   - `WebSocket /ws/gaps`: pushes the cached payload when it changes; limited by `WS_MAX_CONNECTIONS` / `WS_MAX_PER_IP`
+   - `POST /api/refresh-limits`: admin only (`X-Admin-Token` = `ADMIN_TOKEN`, cooldown `ADMIN_REFRESH_COOLDOWN_SEC`); 404 when `ADMIN_TOKEN` is unset
+   - `GET /api/limits-status`: admin only, same token rule
+   - `GET /`: Serves `static/index.html`
+   - `/docs`, `/redoc`, `/openapi.json` are disabled unless `ENABLE_API_DOCS=1`; CORS (GET only) only for `CORS_ALLOW_ORIGINS`; per-IP rate limit `RATE_LIMIT_PER_MIN` (except `/static/*`); gzip for responses ≥ 1KB
 
 **`gap_dashboard/static/index.html`** (single-page application, ~1600 lines)
 
@@ -84,21 +85,22 @@ Pure vanilla JavaScript (no framework), includes:
 - WebSocket client with auto-reconnect
 - Three tabs: domestic (Upbit × Bithumb), spot comparison, futures comparison
 - Real-time table rendering with search/filter/sort
-- Modal popups showing coin-specific details (withdrawal limits, network status, international exchange listings)
+- Modal popups showing coin-specific details (withdrawal availability, network status, international exchange listings)
 - Color-coded rows based on deposit/withdrawal availability
 
 ### Data Flow
 
-1. **Startup**: `_app_lifespan()` loads symbol registries from all exchanges and spawns WebSocket listener tasks
-2. **Background**: WebSocket tasks continuously update `_BINANCE_SPOT_WS_PRICES`, `_BYBIT_LINEAR_WS_PRICES`, etc.
-3. **On Request/Timer**: `_compute_gaps_payload()` is called, which fetches fresh Upbit/Bithumb prices, reads cached international prices, and computes all gaps
-4. **Client Update**: Result is sent via WebSocket to browser clients every `_GAP_WS_INTERVAL_SEC` seconds
+1. **Startup**: `_app_lifespan()` loads symbol registries from all exchanges, spawns WebSocket listener tasks, and starts the internal schedulers (`_start_background_schedulers`)
+2. **Background**: WebSocket tasks continuously update `_BINANCE_SPOT_WS_PRICES`, `_BYBIT_LINEAR_WS_PRICES`, etc.; `_wallet_status_loop` refreshes `_WALLET_CACHE`; `_withdraw_info_loop` refreshes the withdrawal info cache
+3. **Timer**: `_payload_refresh_loop` calls `_compute_gaps_payload()` every `_GAP_WS_INTERVAL_SEC` seconds and stores `_LATEST_PAYLOAD`
+4. **Client Update**: `/api/gaps` and `/ws/gaps` serve `_LATEST_PAYLOAD` (no exchange calls per request)
 
 ### Key Design Patterns
 
 - **Symbol Mapping**: Korean exchanges use different tickers (e.g., "BTT" vs "BTTC"). `_SYMBOL_MAP` dict handles these mappings.
 - **Network Aggregation**: Each coin can have multiple networks (ERC20, TRC20, etc.). The wallet status aggregator checks if "any network is available" for deposit/withdrawal.
-- **Lazy Loading**: Withdrawal limits are loaded on-demand (first WebSocket connection or manual refresh) because they require API calls for every coin with rate limiting.
+- **Scheduler-only exchange access**: Private APIs (wallet status, withdraw chance) run only in internal schedulers, never per request. Public responses expose error codes (`auth_error`, `rate_limited`, `upstream_error`), not raw upstream messages.
+- **Tests**: `python -m pytest` (see `requirements-dev.txt`). Tests set `KIMGAP_SKIP_DOTENV=1` and block all outbound network calls.
 - **Error Resilience**: All exchange API calls use try/except with fallbacks. Missing data is marked as `null` or omitted rather than crashing.
 
 ## Important Coding Conventions
